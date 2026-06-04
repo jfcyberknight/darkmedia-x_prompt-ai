@@ -23,18 +23,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Fetch secrets from Doppler
-        uses: dopplerhq/secrets-fetch-action@v1
-        id: doppler
-        with:
-          doppler-token: ${{ secrets.DOPPLER_TOKEN }}
+      - name: Install Doppler CLI
+        uses: dopplerhq/cli-action@v3
 
-      - name: Generate config.js
+      - name: Generate config.js from Doppler
+        env:
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
         run: |
-          cat > app/config.js << 'EOF'
-          const SUPABASE_URL = '${{ steps.doppler.outputs.SUPABASE_URL }}';
-          const SUPABASE_ANON_KEY = '${{ steps.doppler.outputs.SUPABASE_ANON_KEY }}';
-          EOF
+          SUPABASE_URL=$(doppler secrets get SUPABASE_URL --plain)
+          SUPABASE_ANON_KEY=$(doppler secrets get SUPABASE_ANON_KEY --plain)
+          printf "const SUPABASE_URL = '%s';\nconst SUPABASE_ANON_KEY = '%s';\n" "$SUPABASE_URL" "$SUPABASE_ANON_KEY" > app/config.js
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

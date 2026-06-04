@@ -400,6 +400,8 @@ function onGlobalClick(e) {
     case 'edit-from-detail': openModalFromDetail(); break;
     case 'show-history': showHistory(); break;
     case 'remove-tag':   removeTag(el.dataset.tag); break;
+    case 'toggle-ai-parse': toggleAiParseSection(); break;
+    case 'ai-analyze':   analyzeWithDeepSeek(); break;
   }
 }
 
@@ -673,6 +675,108 @@ async function executeDelete() {
   const id = pendingDeleteId;
   closeConfirm();
   await deletePrompt(id);
+}
+
+// =============================================
+// DEEPSEEK AI PARSE
+// =============================================
+
+function toggleAiParseSection() {
+  const body = $('ai-parse-body');
+  const toggle = $('ai-parse-toggle');
+  const isOpen = body.classList.contains('open');
+  body.classList.toggle('open', !isOpen);
+  toggle.classList.toggle('rotated', !isOpen);
+  if (!isOpen) $('ai-paste-input').focus();
+}
+
+async function analyzeWithDeepSeek() {
+  const text = $('ai-paste-input').value.trim();
+  if (!text) { showToast('Colle du texte avant d\'analyser', 'error'); return; }
+
+  const btn = $('ai-analyze-btn');
+  const status = $('ai-parse-status');
+
+  btn.disabled = true;
+  btn.innerHTML = `<span class="loader"></span> Analyse en cours…`;
+  status.textContent = '';
+
+  try {
+    const res = await fetch('https://api.deepseek.com/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'deepseek-chat',
+        response_format: { type: 'json_object' },
+        messages: [
+          {
+            role: 'system',
+            content: `Tu es un assistant qui extrait des informations structurées depuis un texte brut décrivant un ou plusieurs prompts IA.
+Retourne UNIQUEMENT un objet JSON valide avec ces champs :
+- title: string (titre court et descriptif, max 100 caractères)
+- content: string (le contenu du prompt, propre et bien formaté)
+- description: string (description courte de ce que fait ce prompt, max 200 caractères)
+- tags: array of strings (mots-clés pertinents, max 8, en minuscules, sans espaces, ex: ["redaction","seo","marketing"])
+- model: string (modèle IA mentionné dans le texte, sinon chaîne vide)
+- source: string (source ou origine mentionnée, sinon chaîne vide)
+Si plusieurs prompts sont détectés, extrais le plus important ou le premier.`,
+          },
+          { role: 'user', content: text },
+        ],
+        temperature: 0.3,
+        max_tokens: 1000,
+      }),
+    });
+
+    if (!res.ok) throw new Error(`Erreur API : ${res.status}`);
+
+    const data = await res.json();
+    const raw = data.choices?.[0]?.message?.content;
+    if (!raw) throw new Error('Réponse vide de DeepSeek');
+
+    const parsed = JSON.parse(raw);
+
+    // Remplir le formulaire
+    if (parsed.title)       $('field-title').value       = parsed.title;
+    if (parsed.description) $('field-description').value = parsed.description;
+    if (parsed.content)     $('field-content').value     = parsed.content;
+    if (parsed.model)       $('field-model').value       = parsed.model;
+    if (parsed.source)      $('field-source').value      = parsed.source;
+
+    if (Array.isArray(parsed.tags) && parsed.tags.length) {
+      state.tagInput = [];
+      parsed.tags.forEach(t => addTag(t));
+    }
+
+    // Tenter de matcher la catégorie par nom
+    if (parsed.category) {
+      const match = state.categories.find(c =>
+        c.name.toLowerCase().includes(parsed.category.toLowerCase())
+      );
+      if (match) $('field-category').value = match.id;
+    }
+
+    status.textContent = '✓ Formulaire rempli automatiquement';
+    status.style.color = 'var(--success, #22c55e)';
+
+    // Refermer la section IA
+    setTimeout(() => {
+      $('ai-parse-body').classList.remove('open');
+      $('ai-parse-toggle').classList.remove('rotated');
+      $('ai-paste-input').value = '';
+      status.textContent = '';
+    }, 1500);
+
+  } catch (err) {
+    showToast('Erreur DeepSeek : ' + err.message, 'error');
+    status.textContent = '';
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Analyser avec DeepSeek`;
+  }
 }
 
 // =============================================

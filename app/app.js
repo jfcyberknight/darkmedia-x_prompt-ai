@@ -34,9 +34,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     showLoginScreen();
   }
 
-  db.auth.onAuthStateChange((_event, session) => {
-    if (session) showApp();
-    else showLoginScreen();
+  db.auth.onAuthStateChange((event, session) => {
+    if (event === 'PASSWORD_RECOVERY') {
+      showLoginScreen('reset');
+    } else if (session) {
+      showApp();
+    } else {
+      showLoginScreen();
+    }
   });
 });
 
@@ -49,12 +54,40 @@ async function showApp() {
   bindEvents();
 }
 
-function showLoginScreen() {
+function showLoginScreen(view = 'login') {
   $('login-overlay').style.display = 'flex';
   $('app').style.visibility = 'hidden';
+  if (view === 'reset') showResetView();
+  else showLoginView();
+}
+
+function showLoginView() {
+  $('login-view').style.display = 'block';
+  $('forgot-view').style.display = 'none';
+  $('reset-view').style.display = 'none';
+  $('login-subtitle').textContent = 'Connecte-toi pour accéder à tes prompts';
+}
+
+function showForgotView() {
+  $('login-view').style.display = 'none';
+  $('forgot-view').style.display = 'block';
+  $('reset-view').style.display = 'none';
+  $('login-subtitle').textContent = 'Réinitialisation du mot de passe';
+  $('forgot-error').style.display = 'none';
+  $('forgot-success').style.display = 'none';
+  setTimeout(() => $('forgot-email').focus(), 80);
+}
+
+function showResetView() {
+  $('login-view').style.display = 'none';
+  $('forgot-view').style.display = 'none';
+  $('reset-view').style.display = 'block';
+  $('login-subtitle').textContent = 'Choisis un nouveau mot de passe';
+  setTimeout(() => $('reset-password').focus(), 80);
 }
 
 function bindLoginForm() {
+  // Connexion
   $('login-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = $('login-btn');
@@ -73,6 +106,69 @@ function bindLoginForm() {
       errEl.style.display = 'block';
       btn.disabled = false;
       btn.textContent = 'Se connecter';
+    }
+  });
+
+  // Navigation vers le formulaire de réinitialisation
+  $('forgot-link').addEventListener('click', () => showForgotView());
+  $('back-to-login').addEventListener('click', () => showLoginView());
+
+  // Envoi du lien de réinitialisation
+  $('forgot-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = $('forgot-btn');
+    const errEl = $('forgot-error');
+    const successEl = $('forgot-success');
+    btn.disabled = true;
+    btn.textContent = 'Envoi…';
+    errEl.style.display = 'none';
+    successEl.style.display = 'none';
+
+    const { error } = await db.auth.resetPasswordForEmail(
+      $('forgot-email').value.trim(),
+      { redirectTo: window.location.origin + window.location.pathname }
+    );
+
+    btn.disabled = false;
+    btn.textContent = 'Envoyer le lien de réinitialisation';
+
+    if (error) {
+      errEl.textContent = error.message;
+      errEl.style.display = 'block';
+    } else {
+      successEl.textContent = 'Lien envoyé ! Vérifie ta boîte mail et clique sur le lien pour choisir un nouveau mot de passe.';
+      successEl.style.display = 'block';
+    }
+  });
+
+  // Mise à jour du mot de passe après clic sur le lien email
+  $('reset-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = $('reset-btn');
+    const errEl = $('reset-error');
+    const newPass = $('reset-password').value;
+    const confirm = $('reset-confirm').value;
+
+    errEl.style.display = 'none';
+
+    if (newPass !== confirm) {
+      errEl.textContent = 'Les mots de passe ne correspondent pas.';
+      errEl.style.display = 'block';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Mise à jour…';
+
+    const { error } = await db.auth.updateUser({ password: newPass });
+
+    if (error) {
+      errEl.textContent = error.message;
+      errEl.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = 'Mettre à jour le mot de passe';
+    } else {
+      showToast('Mot de passe mis à jour avec succès !', 'success');
     }
   });
 }

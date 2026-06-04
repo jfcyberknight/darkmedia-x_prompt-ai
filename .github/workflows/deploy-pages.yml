@@ -23,11 +23,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Generate config.js from secrets
+      - name: Fetch secrets from Doppler
+        uses: dopplerhq/secrets-fetch-action@v1
+        id: doppler
+        with:
+          doppler-token: ${{ secrets.DOPPLER_TOKEN }}
+
+      - name: Generate config.js
         run: |
           cat > app/config.js << 'EOF'
-          const SUPABASE_URL = '${{ secrets.SUPABASE_URL }}';
-          const SUPABASE_ANON_KEY = '${{ secrets.SUPABASE_ANON_KEY }}';
+          const SUPABASE_URL = '${{ steps.doppler.outputs.SUPABASE_URL }}';
+          const SUPABASE_ANON_KEY = '${{ steps.doppler.outputs.SUPABASE_ANON_KEY }}';
           EOF
 
       - uses: actions/configure-pages@v5

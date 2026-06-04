@@ -34,9 +34,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     showLoginScreen();
   }
 
-  db.auth.onAuthStateChange((_event, session) => {
-    if (session) showApp();
-    else showLoginScreen();
+  db.auth.onAuthStateChange((event, session) => {
+    if (event === 'PASSWORD_RECOVERY') {
+      showLoginScreen('reset');
+    } else if (session) {
+      showApp();
+    } else {
+      showLoginScreen();
+    }
   });
 });
 
@@ -49,12 +54,40 @@ async function showApp() {
   bindEvents();
 }
 
-function showLoginScreen() {
+function showLoginScreen(view = 'login') {
   $('login-overlay').style.display = 'flex';
   $('app').style.visibility = 'hidden';
+  if (view === 'reset') showResetView();
+  else showLoginView();
+}
+
+function showLoginView() {
+  $('login-view').style.display = 'block';
+  $('forgot-view').style.display = 'none';
+  $('reset-view').style.display = 'none';
+  $('login-subtitle').textContent = 'Connecte-toi pour accéder à tes prompts';
+}
+
+function showForgotView() {
+  $('login-view').style.display = 'none';
+  $('forgot-view').style.display = 'block';
+  $('reset-view').style.display = 'none';
+  $('login-subtitle').textContent = 'Réinitialisation du mot de passe';
+  $('forgot-error').style.display = 'none';
+  $('forgot-success').style.display = 'none';
+  setTimeout(() => $('forgot-email').focus(), 80);
+}
+
+function showResetView() {
+  $('login-view').style.display = 'none';
+  $('forgot-view').style.display = 'none';
+  $('reset-view').style.display = 'block';
+  $('login-subtitle').textContent = 'Choisis un nouveau mot de passe';
+  setTimeout(() => $('reset-password').focus(), 80);
 }
 
 function bindLoginForm() {
+  // Connexion
   $('login-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = $('login-btn');
@@ -75,6 +108,69 @@ function bindLoginForm() {
       btn.textContent = 'Se connecter';
     }
   });
+
+  // Navigation vers le formulaire de réinitialisation
+  $('forgot-link').addEventListener('click', () => showForgotView());
+  $('back-to-login').addEventListener('click', () => showLoginView());
+
+  // Envoi du lien de réinitialisation
+  $('forgot-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = $('forgot-btn');
+    const errEl = $('forgot-error');
+    const successEl = $('forgot-success');
+    btn.disabled = true;
+    btn.textContent = 'Envoi…';
+    errEl.style.display = 'none';
+    successEl.style.display = 'none';
+
+    const { error } = await db.auth.resetPasswordForEmail(
+      $('forgot-email').value.trim(),
+      { redirectTo: window.location.origin + window.location.pathname }
+    );
+
+    btn.disabled = false;
+    btn.textContent = 'Envoyer le lien de réinitialisation';
+
+    if (error) {
+      errEl.textContent = error.message;
+      errEl.style.display = 'block';
+    } else {
+      successEl.textContent = 'Lien envoyé ! Vérifie ta boîte mail et clique sur le lien pour choisir un nouveau mot de passe.';
+      successEl.style.display = 'block';
+    }
+  });
+
+  // Mise à jour du mot de passe après clic sur le lien email
+  $('reset-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = $('reset-btn');
+    const errEl = $('reset-error');
+    const newPass = $('reset-password').value;
+    const confirm = $('reset-confirm').value;
+
+    errEl.style.display = 'none';
+
+    if (newPass !== confirm) {
+      errEl.textContent = 'Les mots de passe ne correspondent pas.';
+      errEl.style.display = 'block';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Mise à jour…';
+
+    const { error } = await db.auth.updateUser({ password: newPass });
+
+    if (error) {
+      errEl.textContent = error.message;
+      errEl.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = 'Mettre à jour le mot de passe';
+    } else {
+      showToast('Mot de passe mis à jour avec succès !', 'success');
+    }
+  });
 }
 
 function bindSettingsForm() {
@@ -84,7 +180,6 @@ function bindSettingsForm() {
 }
 
 function openSettings() {
-  $('settings-deepseek-key').value = localStorage.getItem('deepseek_api_key') || '';
   $('settings-overlay').classList.add('open');
 }
 
@@ -93,11 +188,7 @@ function closeSettings() {
 }
 
 function saveSettings() {
-  const key = $('settings-deepseek-key').value.trim();
-  if (key) localStorage.setItem('deepseek_api_key', key);
-  else localStorage.removeItem('deepseek_api_key');
   closeSettings();
-  showToast('Paramètres sauvegardés', 'success');
 }
 
 async function logout() {
@@ -772,13 +863,6 @@ async function analyzeWithDeepSeek() {
   const text = $('ai-paste-input').value.trim();
   if (!text) { showToast('Colle du texte avant d\'analyser', 'error'); return; }
 
-  const apiKey = localStorage.getItem('deepseek_api_key') || '';
-  if (!apiKey) {
-    showToast('Configure ta clé DeepSeek dans les Paramètres (⚙️)', 'error');
-    openSettings();
-    return;
-  }
-
   const btn = $('ai-analyze-btn');
   const status = $('ai-parse-status');
 
@@ -787,42 +871,13 @@ async function analyzeWithDeepSeek() {
   status.textContent = '';
 
   try {
-    const res = await fetch('https://api.deepseek.com/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: 'deepseek-chat',
-        response_format: { type: 'json_object' },
-        messages: [
-          {
-            role: 'system',
-            content: `Tu es un assistant qui extrait des informations structurées depuis un texte brut décrivant un ou plusieurs prompts IA.
-Retourne UNIQUEMENT un objet JSON valide avec ces champs :
-- title: string (titre court et descriptif, max 100 caractères)
-- content: string (le contenu du prompt, propre et bien formaté)
-- description: string (description courte de ce que fait ce prompt, max 200 caractères)
-- tags: array of strings (mots-clés pertinents, max 8, en minuscules, sans espaces, ex: ["redaction","seo","marketing"])
-- model: string (modèle IA mentionné dans le texte, sinon chaîne vide)
-- source: string (source ou origine mentionnée, sinon chaîne vide)
-Si plusieurs prompts sont détectés, extrais le plus important ou le premier.`,
-          },
-          { role: 'user', content: text },
-        ],
-        temperature: 0.3,
-        max_tokens: 1000,
-      }),
+    const { data, error } = await db.functions.invoke('deepseek-proxy', {
+      body: { text },
     });
 
-    if (!res.ok) throw new Error(`Erreur API : ${res.status}`);
+    if (error) throw new Error(error.message || 'Erreur Edge Function');
 
-    const data = await res.json();
-    const raw = data.choices?.[0]?.message?.content;
-    if (!raw) throw new Error('Réponse vide de DeepSeek');
-
-    const parsed = JSON.parse(raw);
+    const parsed = typeof data === 'string' ? JSON.parse(data) : data;
 
     // Remplir le formulaire
     if (parsed.title)       $('field-title').value       = parsed.title;

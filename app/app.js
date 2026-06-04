@@ -1,7 +1,6 @@
 /* =============================================
    DarkMedia Prompt AI — Application Logic
    Dépendance : @supabase/supabase-js (CDN)
-   Config      : config.js (SUPABASE_URL, SUPABASE_ANON_KEY)
    ============================================= */
 
 // ---- Init Supabase ----
@@ -25,11 +24,86 @@ const qs = (sel, ctx = document) => ctx.querySelector(sel);
 
 // ---- Bootstrap ----
 document.addEventListener('DOMContentLoaded', async () => {
+  bindLoginForm();
+  bindSettingsForm();
+
+  const { data: { session } } = await db.auth.getSession();
+  if (session) {
+    showApp();
+  } else {
+    showLoginScreen();
+  }
+
+  db.auth.onAuthStateChange((_event, session) => {
+    if (session) showApp();
+    else showLoginScreen();
+  });
+});
+
+async function showApp() {
+  $('login-overlay').style.display = 'none';
+  $('app').style.visibility = 'visible';
   await Promise.all([loadCategories(), loadPrompts()]);
   renderSidebar();
   renderPrompts();
   bindEvents();
-});
+}
+
+function showLoginScreen() {
+  $('login-overlay').style.display = 'flex';
+  $('app').style.visibility = 'hidden';
+}
+
+function bindLoginForm() {
+  $('login-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = $('login-btn');
+    const errEl = $('login-error');
+    btn.disabled = true;
+    btn.textContent = 'Connexion…';
+    errEl.style.display = 'none';
+
+    const { error } = await db.auth.signInWithPassword({
+      email: $('login-email').value.trim(),
+      password: $('login-password').value,
+    });
+
+    if (error) {
+      errEl.textContent = error.message;
+      errEl.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = 'Se connecter';
+    }
+  });
+}
+
+function bindSettingsForm() {
+  $('settings-overlay').addEventListener('click', e => {
+    if (e.target === $('settings-overlay')) closeSettings();
+  });
+}
+
+function openSettings() {
+  $('settings-deepseek-key').value = localStorage.getItem('deepseek_api_key') || '';
+  $('settings-overlay').classList.add('open');
+}
+
+function closeSettings() {
+  $('settings-overlay').classList.remove('open');
+}
+
+function saveSettings() {
+  const key = $('settings-deepseek-key').value.trim();
+  if (key) localStorage.setItem('deepseek_api_key', key);
+  else localStorage.removeItem('deepseek_api_key');
+  closeSettings();
+  showToast('Paramètres sauvegardés', 'success');
+}
+
+async function logout() {
+  await db.auth.signOut();
+  showToast('Déconnecté', 'success');
+}
 
 // =============================================
 // DATA
@@ -392,6 +466,10 @@ function onGlobalClick(e) {
     case 'copy':         copyPrompt(el.dataset.id, el); break;
     case 'edit':         openModal(el.dataset.id); break;
     case 'delete':       confirmDelete(el.dataset.id); break;
+    case 'logout':        logout(); break;
+    case 'open-settings': openSettings(); break;
+    case 'close-settings': closeSettings(); break;
+    case 'save-settings': saveSettings(); break;
     case 'close-modal':  closeModal(); break;
     case 'close-detail': closeDetailModal(); break;
     case 'close-confirm': closeConfirm(); break;
@@ -694,6 +772,13 @@ async function analyzeWithDeepSeek() {
   const text = $('ai-paste-input').value.trim();
   if (!text) { showToast('Colle du texte avant d\'analyser', 'error'); return; }
 
+  const apiKey = localStorage.getItem('deepseek_api_key') || '';
+  if (!apiKey) {
+    showToast('Configure ta clé DeepSeek dans les Paramètres (⚙️)', 'error');
+    openSettings();
+    return;
+  }
+
   const btn = $('ai-analyze-btn');
   const status = $('ai-parse-status');
 
@@ -706,7 +791,7 @@ async function analyzeWithDeepSeek() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+        'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
         model: 'deepseek-chat',

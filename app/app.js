@@ -84,7 +84,6 @@ function bindSettingsForm() {
 }
 
 function openSettings() {
-  $('settings-deepseek-key').value = localStorage.getItem('deepseek_api_key') || '';
   $('settings-overlay').classList.add('open');
 }
 
@@ -93,11 +92,7 @@ function closeSettings() {
 }
 
 function saveSettings() {
-  const key = $('settings-deepseek-key').value.trim();
-  if (key) localStorage.setItem('deepseek_api_key', key);
-  else localStorage.removeItem('deepseek_api_key');
   closeSettings();
-  showToast('Paramètres sauvegardés', 'success');
 }
 
 async function logout() {
@@ -772,13 +767,6 @@ async function analyzeWithDeepSeek() {
   const text = $('ai-paste-input').value.trim();
   if (!text) { showToast('Colle du texte avant d\'analyser', 'error'); return; }
 
-  const apiKey = localStorage.getItem('deepseek_api_key') || '';
-  if (!apiKey) {
-    showToast('Configure ta clé DeepSeek dans les Paramètres (⚙️)', 'error');
-    openSettings();
-    return;
-  }
-
   const btn = $('ai-analyze-btn');
   const status = $('ai-parse-status');
 
@@ -787,42 +775,13 @@ async function analyzeWithDeepSeek() {
   status.textContent = '';
 
   try {
-    const res = await fetch('https://api.deepseek.com/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: 'deepseek-chat',
-        response_format: { type: 'json_object' },
-        messages: [
-          {
-            role: 'system',
-            content: `Tu es un assistant qui extrait des informations structurées depuis un texte brut décrivant un ou plusieurs prompts IA.
-Retourne UNIQUEMENT un objet JSON valide avec ces champs :
-- title: string (titre court et descriptif, max 100 caractères)
-- content: string (le contenu du prompt, propre et bien formaté)
-- description: string (description courte de ce que fait ce prompt, max 200 caractères)
-- tags: array of strings (mots-clés pertinents, max 8, en minuscules, sans espaces, ex: ["redaction","seo","marketing"])
-- model: string (modèle IA mentionné dans le texte, sinon chaîne vide)
-- source: string (source ou origine mentionnée, sinon chaîne vide)
-Si plusieurs prompts sont détectés, extrais le plus important ou le premier.`,
-          },
-          { role: 'user', content: text },
-        ],
-        temperature: 0.3,
-        max_tokens: 1000,
-      }),
+    const { data, error } = await db.functions.invoke('deepseek-proxy', {
+      body: { text },
     });
 
-    if (!res.ok) throw new Error(`Erreur API : ${res.status}`);
+    if (error) throw new Error(error.message || 'Erreur Edge Function');
 
-    const data = await res.json();
-    const raw = data.choices?.[0]?.message?.content;
-    if (!raw) throw new Error('Réponse vide de DeepSeek');
-
-    const parsed = JSON.parse(raw);
+    const parsed = typeof data === 'string' ? JSON.parse(data) : data;
 
     // Remplir le formulaire
     if (parsed.title)       $('field-title').value       = parsed.title;

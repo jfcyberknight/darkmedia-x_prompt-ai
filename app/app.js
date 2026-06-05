@@ -570,7 +570,7 @@ function onGlobalClick(e) {
     case 'show-history': showHistory(); break;
     case 'remove-tag':   removeTag(el.dataset.tag); break;
     case 'toggle-ai-parse': toggleAiParseSection(); break;
-    case 'ai-analyze':   analyzeWithDeepSeek(); break;
+    case 'ai-analyze':   analyzeWithAI(); break;
   }
 }
 
@@ -847,7 +847,7 @@ async function executeDelete() {
 }
 
 // =============================================
-// DEEPSEEK AI PARSE
+// AI PARSE
 // =============================================
 
 function toggleAiParseSection() {
@@ -859,7 +859,7 @@ function toggleAiParseSection() {
   if (!isOpen) $('ai-paste-input').focus();
 }
 
-async function analyzeWithDeepSeek() {
+async function analyzeWithAI() {
   const text = $('ai-paste-input').value.trim();
   if (!text) { showToast('Colle du texte avant d\'analyser', 'error'); return; }
 
@@ -871,7 +871,7 @@ async function analyzeWithDeepSeek() {
   status.textContent = '';
 
   try {
-    const { data, error } = await db.functions.invoke('deepseek-proxy', {
+    const { data, error } = await db.functions.invoke('ai-proxy', {
       body: { text },
     });
 
@@ -918,11 +918,11 @@ async function analyzeWithDeepSeek() {
     }, 1500);
 
   } catch (err) {
-    showToast('Erreur DeepSeek : ' + err.message, 'error');
+    showToast('Erreur AI : ' + err.message, 'error');
     status.textContent = '';
   } finally {
     btn.disabled = false;
-    btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Analyser avec DeepSeek`;
+    btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Analyser avec l'AI`;
   }
 }
 

@@ -56,7 +56,7 @@
   <line x1="410" y1="376" x2="550" y2="376" stroke="#334155" stroke-width="1"/>
   <text x="415" y="391" fill="#94a3b8" font-size="10">SUPABASE_URL</text>
   <text x="415" y="407" fill="#94a3b8" font-size="10">SUPABASE_ANON_KEY</text>
-  <text x="415" y="423" fill="#94a3b8" font-size="10">DEEPSEEK_API_KEY*</text>
+  <text x="415" y="423" fill="#94a3b8" font-size="10">GEMINI_KEY*</text>
 
   <!-- Generate config.js -->
   <rect x="600" y="358" width="130" height="56" rx="8" fill="#1e293b" stroke="#334155" stroke-width="1.5" filter="url(#shadow)"/>
@@ -94,12 +94,12 @@
   <!-- Edge Function -->
   <rect x="400" y="598" width="160" height="56" rx="8" fill="#1e293b" stroke="#22c55e" stroke-width="1.5" filter="url(#shadow)"/>
   <text x="480" y="621" text-anchor="middle" fill="#86efac" font-size="12" font-weight="600">Edge Function</text>
-  <text x="480" y="638" text-anchor="middle" fill="#94a3b8" font-size="10">deepseek-proxy (Deno)</text>
+  <text x="480" y="638" text-anchor="middle" fill="#94a3b8" font-size="10">ai-proxy (Deno)</text>
 
-  <!-- DeepSeek API -->
+  <!-- Gemini API -->
   <rect x="600" y="598" width="130" height="56" rx="8" fill="#1e293b" stroke="#8b5cf6" stroke-width="1.5" filter="url(#shadow)"/>
-  <text x="665" y="621" text-anchor="middle" fill="#c4b5fd" font-size="12" font-weight="600">DeepSeek API</text>
-  <text x="665" y="638" text-anchor="middle" fill="#94a3b8" font-size="10">deepseek-chat</text>
+  <text x="665" y="621" text-anchor="middle" fill="#c4b5fd" font-size="12" font-weight="600">Gemini API</text>
+  <text x="665" y="638" text-anchor="middle" fill="#94a3b8" font-size="10">gemini-2.0-flash</text>
 
   <!-- ===================== ARROWS ===================== -->
 
@@ -133,7 +133,7 @@
   <!-- App → Edge Function (from pages) -->
   <path d="M 818 534 Q 840 626 560 626" fill="none" stroke="#8b5cf6" stroke-width="1.5" stroke-dasharray="5,4" marker-end="url(#arrow-gray)"/>
 
-  <!-- Edge Function → DeepSeek -->
+  <!-- Edge Function → Gemini -->
   <line x1="560" y1="626" x2="600" y2="626" stroke="#8b5cf6" stroke-width="1.5" marker-end="url(#arrow)"/>
 
   <!-- ===================== LEGEND ===================== -->
@@ -148,5 +148,5 @@
   <text x="382" y="694" fill="#94a3b8" font-size="10">Appel IA (runtime)</text>
   <line x1="470" y1="690" x2="494" y2="690" stroke="#64748b" stroke-width="1.5" stroke-dasharray="4,3"/>
   <text x="500" y="694" fill="#94a3b8" font-size="10">Flux navigateur (runtime)</text>
-  <text x="860" y="694" text-anchor="end" fill="#475569" font-size="10">* DEEPSEEK_API_KEY → Supabase Secrets (pas Doppler)</text>
+  <text x="860" y="694" text-anchor="end" fill="#475569" font-size="10">* GEMINI_KEY → Supabase Secrets (pas Doppler)</text>
 </svg>

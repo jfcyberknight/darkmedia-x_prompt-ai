@@ -17,13 +17,23 @@ Retourne UNIQUEMENT un objet JSON valide avec ces champs :
 - source: string (source ou origine mentionnée, sinon chaîne vide)
 Si plusieurs prompts sont détectés, extrais le plus important ou le premier.`;
 
+const UPGRADE_PROMPT = `Tu es un ingénieur de prompt IA expert. Ton rôle est d'analyser le prompt fourni et de l'améliorer/optimiser (l'upgrader) pour qu'il donne de bien meilleurs résultats avec les LLM modernes.
+Rends-le plus précis, ajoute des consignes structurées, utilise des délimiteurs (comme XML ou Markdown) si nécessaire, et améliore la clarté globale.
+Retourne UNIQUEMENT un objet JSON valide avec ces champs :
+- title: string (titre court et descriptif du prompt amélioré, max 100 caractères)
+- content: string (le contenu du prompt entièrement amélioré et optimisé, propre et bien formaté)
+- description: string (description courte de ce que fait ce prompt, max 200 caractères)
+- tags: array of strings (mots-clés pertinents, max 8, en minuscules, sans espaces)
+- model: string (modèle IA recommandé ou inchangé, sinon chaîne vide)
+- source: string (source ou origine inchangée, sinon chaîne vide)`;
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    const { text } = await req.json();
+    const { text, action = 'extract' } = await req.json();
 
     if (!text) {
       return new Response(JSON.stringify({ error: 'text is required' }), {
@@ -40,12 +50,13 @@ Deno.serve(async (req: Request) => {
     }
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${GEMINI_KEY}`;
+    const selectedPrompt = action === 'upgrade' ? UPGRADE_PROMPT : SYSTEM_PROMPT;
 
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
+        systemInstruction: { parts: [{ text: selectedPrompt }] },
         contents: [{ role: 'user', parts: [{ text }] }],
         generationConfig: {
           responseMimeType: 'application/json',

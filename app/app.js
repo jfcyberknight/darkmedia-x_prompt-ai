@@ -571,6 +571,7 @@ function onGlobalClick(e) {
     case 'remove-tag':   removeTag(el.dataset.tag); break;
     case 'toggle-ai-parse': toggleAiParseSection(); break;
     case 'ai-analyze':   analyzeWithAI(); break;
+    case 'upgrade-prompt-ai': upgradePromptWithAI(el.dataset.id); break;
   }
 }
 
@@ -617,23 +618,23 @@ function populateCategorySelect() {
   });
 }
 
-function openModal(id = null) {
+function openModal(id = null, prefilledData = null) {
   state.editingId = id;
   state.tagInput = [];
 
   const p = id ? state.prompts.find(p => p.id === id) : null;
 
-  $('modal-title').textContent = id ? 'Modifier le prompt' : 'Nouveau prompt';
+  $('modal-title').textContent = prefilledData ? 'Modifier le prompt (Optimisé par l\'AI)' : (id ? 'Modifier le prompt' : 'Nouveau prompt');
   populateCategorySelect();
-  $('field-title').value        = p?.title || '';
-  $('field-description').value  = p?.description || '';
-  $('field-content').value      = p?.content || '';
-  $('field-model').value        = p?.model || '';
-  $('field-source').value       = p?.source || '';
+  $('field-title').value        = prefilledData?.title || p?.title || '';
+  $('field-description').value  = prefilledData?.description || p?.description || '';
+  $('field-content').value      = prefilledData?.content || p?.content || '';
+  $('field-model').value        = prefilledData?.model || p?.model || '';
+  $('field-source').value       = prefilledData?.source || p?.source || '';
   $('field-category').value     = p?.category_id || '';
 
   // Tags
-  state.tagInput = [...(p?.tags || [])];
+  state.tagInput = prefilledData?.tags ? [...prefilledData.tags] : [...(p?.tags || [])];
   renderTagsInput();
 
   $('modal-overlay').classList.add('open');
@@ -759,6 +760,10 @@ function openDetail(id) {
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" data-action="show-history">Historique</button>
+      <button class="btn btn-ghost" id="detail-upgrade-btn" data-action="upgrade-prompt-ai" data-id="${p.id}" style="color:var(--accent)">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        Améliorer par l'AI
+      </button>
       <button class="btn btn-ghost" data-action="edit-from-detail">Modifier</button>
       <button class="btn btn-primary" data-action="copy-detail">Copier le prompt</button>
     </div>
@@ -923,6 +928,48 @@ async function analyzeWithAI() {
   } finally {
     btn.disabled = false;
     btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Analyser avec l'AI`;
+  }
+}
+
+async function upgradePromptWithAI(id) {
+  const p = state.prompts.find(p => p.id === id);
+  if (!p) return;
+
+  const btn = $('detail-upgrade-btn');
+  const originalHtml = btn.innerHTML;
+
+  btn.disabled = true;
+  btn.innerHTML = `<span class="loader"></span> Optimisation...`;
+
+  const textToOptimize = `Titre actuel : ${p.title}\nDescription actuelle : ${p.description || ''}\nModèle recommandé : ${p.model || ''}\nTags actuels : ${(p.tags || []).join(', ')}\nPrompt à optimiser :\n${p.content}`;
+
+  try {
+    const { data, error } = await db.functions.invoke('ai-proxy', {
+      body: { text: textToOptimize, action: 'upgrade' },
+    });
+
+    if (error) {
+      let msg = error.message || 'Erreur Edge Function';
+      try {
+        const body = await error.context?.json?.();
+        if (body?.error) msg = body.error;
+      } catch (_) {}
+      throw new Error(msg);
+    }
+
+    const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+
+    closeDetailModal();
+    openModal(id, parsed);
+    showToast('Prompt optimisé par l\'AI (prêt à être enregistré)', 'success');
+
+  } catch (err) {
+    showToast('Erreur d\'optimisation : ' + err.message, 'error');
+  } finally {
+    if ($('detail-upgrade-btn')) {
+      btn.disabled = false;
+      btn.innerHTML = originalHtml;
+    }
   }
 }
 

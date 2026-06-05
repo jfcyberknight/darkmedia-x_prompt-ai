@@ -561,6 +561,7 @@ function onGlobalClick(e) {
     case 'open-settings': openSettings(); break;
     case 'close-settings': closeSettings(); break;
     case 'save-settings': saveSettings(); break;
+    case 'auto-categorize-prompts': autoCategorizePrompts(); break;
     case 'close-modal':  closeModal(); break;
     case 'close-detail': closeDetailModal(); break;
     case 'close-confirm': closeConfirm(); break;
@@ -977,6 +978,76 @@ async function upgradePromptWithAI(id) {
       btn.disabled = false;
       btn.innerHTML = originalHtml;
     }
+  }
+}
+
+async function autoCategorizePrompts() {
+  const btn = $('btn-auto-categorize');
+  if (!btn) return;
+
+  const prompts = state.prompts.filter(p => !p.category_id);
+
+  if (prompts.length === 0) {
+    showToast('Tous les prompts ont déjà une catégorie !', 'success');
+    return;
+  }
+
+  const originalHtml = btn.innerHTML;
+  btn.disabled = true;
+
+  let successCount = 0;
+
+  try {
+    for (let i = 0; i < prompts.length; i++) {
+      const p = prompts[i];
+      btn.innerHTML = `<span class="loader"></span> Traitement ${i + 1}/${prompts.length}...`;
+
+      const textToAnalyze = `Titre : ${p.title}\nDescription : ${p.description || ''}\nPrompt :\n${p.content}`;
+
+      try {
+        const { data, error } = await db.functions.invoke('ai-proxy', {
+          body: { text: textToAnalyze, action: 'extract' }
+        });
+
+        if (error) continue;
+
+        const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+        const categoryName = parsed.category;
+
+        if (!categoryName) continue;
+
+        const matchedCat = state.categories.find(c =>
+          c.name.toLowerCase().includes(categoryName.toLowerCase()) ||
+          categoryName.toLowerCase().includes(c.name.toLowerCase())
+        );
+
+        if (!matchedCat) continue;
+
+        const { error: dbError } = await db
+          .from('prompts')
+          .update({ category_id: matchedCat.id })
+          .eq('id', p.id);
+
+        if (!dbError) {
+          successCount++;
+        }
+      } catch (_) {}
+    }
+
+    if (successCount > 0) {
+      showToast(`${successCount} prompt(s) catégorisé(s) avec succès !`, 'success');
+      await loadPrompts();
+      renderSidebar();
+      renderPrompts();
+    } else {
+      showToast('Aucun prompt n\'a pu être catégorisé.', 'warning');
+    }
+
+  } catch (err) {
+    showToast('Erreur lors de la catégorisation : ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalHtml;
   }
 }
 

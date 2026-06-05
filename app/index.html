@@ -314,10 +314,20 @@
         </svg>
       </button>
     </div>
-    <div class="modal-body">
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:1.2rem;">
       <p style="font-size:0.88rem;color:var(--text-secondary);margin:0">
         Les clés API (Supabase, AI) sont gérées de façon sécurisée via <strong>Doppler</strong> et injectées au moment du déploiement. Aucun secret n'est stocké dans le navigateur.
       </p>
+      <div style="border-top:1px solid var(--border);padding-top:1.2rem;">
+        <h4 style="margin:0 0 0.4rem 0;font-size:0.9rem;font-weight:600;color:var(--text-primary);">Maintenance</h4>
+        <p style="font-size:0.8rem;color:var(--text-secondary);margin:0 0 0.8rem 0;">
+          Associer automatiquement les catégories appropriées de l'AI à tous les prompts qui n'en ont pas.
+        </p>
+        <button type="button" class="btn btn-ghost" id="btn-auto-categorize" data-action="auto-categorize-prompts" style="color:var(--accent);width:100%;justify-content:center;border:1px dashed var(--accent-dim);">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:4px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          Classer les prompts orphelins par l'AI
+        </button>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" data-action="close-settings">Annuler</button>

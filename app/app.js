@@ -875,7 +875,14 @@ async function analyzeWithDeepSeek() {
       body: { text },
     });
 
-    if (error) throw new Error(error.message || 'Erreur Edge Function');
+    if (error) {
+      let msg = error.message || 'Erreur Edge Function';
+      try {
+        const body = await error.context?.json?.();
+        if (body?.error) msg = body.error;
+      } catch (_) {}
+      throw new Error(msg);
+    }
 
     const parsed = typeof data === 'string' ? JSON.parse(data) : data;
 

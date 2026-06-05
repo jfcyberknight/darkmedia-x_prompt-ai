@@ -15,6 +15,7 @@ Retourne UNIQUEMENT un objet JSON valide avec ces champs :
 - tags: array of strings (mots-clés pertinents, max 8, en minuscules, sans espaces)
 - model: string (modèle IA mentionné dans le texte, sinon chaîne vide)
 - source: string (source ou origine mentionnée, sinon chaîne vide)
+- category: string (la catégorie la plus appropriée parmi : Général, Documentation, Code, Analyse, Créatif, Automatisation, Débogage, Formation)
 Si plusieurs prompts sont détectés, extrais le plus important ou le premier.`;
 
 const UPGRADE_PROMPT = `Tu es un ingénieur de prompt IA expert. Ton rôle est d'analyser le prompt fourni et de l'améliorer/optimiser (l'upgrader) pour qu'il donne de bien meilleurs résultats avec les LLM modernes.
@@ -25,7 +26,8 @@ Retourne UNIQUEMENT un objet JSON valide avec ces champs :
 - description: string (description courte de ce que fait ce prompt, max 200 caractères)
 - tags: array of strings (mots-clés pertinents, max 8, en minuscules, sans espaces)
 - model: string (modèle IA recommandé ou inchangé, sinon chaîne vide)
-- source: string (source ou origine inchangée, sinon chaîne vide)`;
+- source: string (source ou origine inchangée, sinon chaîne vide)
+- category: string (la catégorie la plus appropriée parmi : Général, Documentation, Code, Analyse, Créatif, Automatisation, Débogage, Formation)`;
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {

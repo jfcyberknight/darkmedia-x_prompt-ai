@@ -631,7 +631,14 @@ function openModal(id = null, prefilledData = null) {
   $('field-content').value      = prefilledData?.content || p?.content || '';
   $('field-model').value        = prefilledData?.model || p?.model || '';
   $('field-source').value       = prefilledData?.source || p?.source || '';
-  $('field-category').value     = p?.category_id || '';
+  let matchedCategoryId = p?.category_id || '';
+  if (prefilledData?.category) {
+    const match = state.categories.find(c =>
+      c.name.toLowerCase().includes(prefilledData.category.toLowerCase())
+    );
+    if (match) matchedCategoryId = match.id;
+  }
+  $('field-category').value     = matchedCategoryId;
 
   // Tags
   state.tagInput = prefilledData?.tags ? [...prefilledData.tags] : [...(p?.tags || [])];

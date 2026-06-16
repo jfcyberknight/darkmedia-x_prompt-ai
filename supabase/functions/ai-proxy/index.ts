@@ -35,7 +35,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { text, action = 'extract' } = await req.json();
+    const { text, action = 'extract', instruction = '' } = await req.json();
 
     if (!text) {
       return new Response(JSON.stringify({ error: 'text is required' }), {
@@ -52,7 +52,12 @@ Deno.serve(async (req: Request) => {
     }
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${GEMINI_KEY}`;
-    const selectedPrompt = action === 'upgrade' ? UPGRADE_PROMPT : SYSTEM_PROMPT;
+    let selectedPrompt = action === 'upgrade' ? UPGRADE_PROMPT : SYSTEM_PROMPT;
+
+    // Consignes d'orientation fournies par l'utilisateur pour l'amélioration.
+    if (action === 'upgrade' && typeof instruction === 'string' && instruction.trim()) {
+      selectedPrompt += `\n\nCONSIGNES PRIORITAIRES DE L'UTILISATEUR pour orienter l'amélioration (respecte-les en priorité) :\n${instruction.trim()}`;
+    }
 
     const res = await fetch(url, {
       method: 'POST',

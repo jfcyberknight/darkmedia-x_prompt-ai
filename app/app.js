@@ -572,6 +572,8 @@ function onGlobalClick(e) {
     case 'remove-tag':   removeTag(el.dataset.tag); break;
     case 'toggle-ai-parse': toggleAiParseSection(); break;
     case 'ai-analyze':   analyzeWithAI(); break;
+    case 'toggle-ai-improve': toggleAiImproveSection(); break;
+    case 'ai-improve':   improveWithAI(); break;
     case 'upgrade-prompt-ai': upgradePromptWithAI(el.dataset.id); break;
   }
 }
@@ -644,6 +646,12 @@ function openModal(id = null, prefilledData = null) {
   // Tags
   state.tagInput = prefilledData?.tags ? [...prefilledData.tags] : [...(p?.tags || [])];
   renderTagsInput();
+
+  // Réinitialise la section d'amélioration AI (consignes + état replié)
+  if ($('ai-improve-input')) $('ai-improve-input').value = '';
+  if ($('ai-improve-body')) $('ai-improve-body').classList.remove('open');
+  if ($('ai-improve-toggle')) $('ai-improve-toggle').classList.remove('rotated');
+  if ($('ai-improve-status')) $('ai-improve-status').textContent = '';
 
   $('modal-overlay').classList.add('open');
   setTimeout(() => $('field-title').focus(), 80);
@@ -936,6 +944,94 @@ async function analyzeWithAI() {
   } finally {
     btn.disabled = false;
     btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Analyser avec l'AI`;
+  }
+}
+
+function toggleAiImproveSection() {
+  const body = $('ai-improve-body');
+  const toggle = $('ai-improve-toggle');
+  const isOpen = body.classList.contains('open');
+  body.classList.toggle('open', !isOpen);
+  toggle.classList.toggle('rotated', !isOpen);
+  if (!isOpen) $('ai-improve-input').focus();
+}
+
+// Améliore le prompt en cours d'édition à partir des champs du formulaire,
+// en tenant compte des consignes d'orientation fournies par l'utilisateur.
+async function improveWithAI() {
+  const content = $('field-content').value.trim();
+  if (!content) {
+    showToast('Ajoute d\'abord un contenu de prompt à améliorer', 'error');
+    return;
+  }
+
+  const instruction = $('ai-improve-input').value.trim();
+  const btn = $('ai-improve-btn');
+  const status = $('ai-improve-status');
+  const originalHtml = btn.innerHTML;
+
+  btn.disabled = true;
+  btn.innerHTML = `<span class="loader"></span> Amélioration en cours…`;
+  status.textContent = '';
+
+  const textToOptimize = [
+    `Titre actuel : ${$('field-title').value.trim()}`,
+    `Description actuelle : ${$('field-description').value.trim()}`,
+    `Modèle recommandé : ${$('field-model').value.trim()}`,
+    `Tags actuels : ${state.tagInput.join(', ')}`,
+    `Prompt à améliorer :\n${content}`,
+  ].join('\n');
+
+  try {
+    const { data, error } = await db.functions.invoke('ai-proxy', {
+      body: { text: textToOptimize, action: 'upgrade', instruction },
+    });
+
+    if (error) {
+      let msg = error.message || 'Erreur Edge Function';
+      try {
+        const body = await error.context?.json?.();
+        if (body?.error) msg = body.error;
+      } catch (_) {}
+      throw new Error(msg);
+    }
+
+    const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+
+    // Met à jour le formulaire en place (sans fermer la modale)
+    if (parsed.title)       $('field-title').value       = parsed.title;
+    if (parsed.description) $('field-description').value = parsed.description;
+    if (parsed.content)     $('field-content').value     = parsed.content;
+    if (parsed.model)       $('field-model').value       = parsed.model;
+    if (parsed.source)      $('field-source').value      = parsed.source;
+
+    if (Array.isArray(parsed.tags) && parsed.tags.length) {
+      state.tagInput = [];
+      parsed.tags.forEach(t => addTag(t));
+    }
+
+    if (parsed.category) {
+      const match = state.categories.find(c =>
+        c.name.toLowerCase().includes(parsed.category.toLowerCase())
+      );
+      if (match) $('field-category').value = match.id;
+    }
+
+    status.textContent = '✓ Prompt amélioré — vérifie puis sauvegarde';
+    status.style.color = 'var(--success, #22c55e)';
+
+    setTimeout(() => {
+      $('ai-improve-body').classList.remove('open');
+      $('ai-improve-toggle').classList.remove('rotated');
+      status.textContent = '';
+    }, 2500);
+
+  } catch (err) {
+    showToast('Erreur d\'amélioration : ' + err.message, 'error');
+    status.textContent = '';
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalHtml;
   }
 }
 

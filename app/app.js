@@ -659,7 +659,14 @@ function openModal(id = null, prefilledData = null) {
   const modalBody = qs('.modal-body', $('modal-overlay'));
   if (modalBody) modalBody.scrollTop = 0;
 
-  setTimeout(() => $('field-title').focus({ preventScroll: true }), 80);
+  setTimeout(() => {
+    const titleField = $('field-title');
+    if (titleField) {
+      titleField.focus({ preventScroll: true });
+    }
+    // Force scroll reset to top in case focus() caused scrolling
+    if (modalBody) modalBody.scrollTop = 0;
+  }, 150);
 }
 
 function closeModal() {

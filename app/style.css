@@ -782,6 +782,7 @@ select option { background: var(--bg-card); }
 
 /* ---- AI PARSE SECTION ---- */
 .ai-parse-section {
+  flex-shrink: 0;
   border: 1px solid rgba(99,102,241,0.3);
   border-radius: var(--radius);
   overflow: hidden;

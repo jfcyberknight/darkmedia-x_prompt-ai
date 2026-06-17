@@ -654,7 +654,12 @@ function openModal(id = null, prefilledData = null) {
   if ($('ai-improve-status')) $('ai-improve-status').textContent = '';
 
   $('modal-overlay').classList.add('open');
-  setTimeout(() => $('field-title').focus(), 80);
+
+  // Scroll modal body to top so AI sections are visible
+  const modalBody = qs('.modal-body', $('modal-overlay'));
+  if (modalBody) modalBody.scrollTop = 0;
+
+  setTimeout(() => $('field-title').focus({ preventScroll: true }), 80);
 }
 
 function closeModal() {

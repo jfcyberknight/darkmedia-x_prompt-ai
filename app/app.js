@@ -22,10 +22,52 @@ let state = {
 const $ = id => document.getElementById(id);
 const qs = (sel, ctx = document) => ctx.querySelector(sel);
 
+// ---- PWA Installation ----
+let deferredPrompt = null;
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then(reg => console.log('Service Worker registered successfully:', reg.scope))
+      .catch(err => console.error('Service Worker registration failed:', err));
+  });
+}
+
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  const installBtn = $('pwa-install-btn');
+  if (installBtn) {
+    installBtn.style.display = 'inline-flex';
+  }
+});
+
+window.addEventListener('appinstalled', (e) => {
+  deferredPrompt = null;
+  const installBtn = $('pwa-install-btn');
+  if (installBtn) {
+    installBtn.style.display = 'none';
+  }
+  showToast('Application installée avec succès !', 'success');
+});
+
 // ---- Bootstrap ----
 document.addEventListener('DOMContentLoaded', async () => {
   bindLoginForm();
   bindSettingsForm();
+
+  // Bind PWA Install button
+  const installBtn = $('pwa-install-btn');
+  if (installBtn) {
+    installBtn.addEventListener('click', async () => {
+      if (!deferredPrompt) return;
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      console.log(`User response to the install prompt: ${outcome}`);
+      deferredPrompt = null;
+      installBtn.style.display = 'none';
+    });
+  }
 
   const { data: { session } } = await db.auth.getSession();
   if (session) {

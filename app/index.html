@@ -320,72 +320,120 @@
 
 <!-- ========== LOGIN SCREEN ========== -->
 <div class="login-overlay" id="login-overlay">
-  <div class="login-box">
-    <div class="login-logo">
-      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
-      </svg>
-    </div>
-    <h1 class="login-title">DarkMedia · Prompt AI</h1>
-    <p class="login-subtitle" id="login-subtitle">Connecte-toi pour accéder à tes prompts</p>
-
-    <!-- VUE : Connexion -->
-    <div id="login-view">
-      <form id="login-form" class="login-form">
-        <div class="form-group">
-          <label for="login-email">Email</label>
-          <input type="email" id="login-email" name="email" placeholder="ton@email.com" required autocomplete="username">
+  <div class="landing-container">
+    
+    <!-- LEFT: Pitch & Features -->
+    <div class="landing-pitch">
+      <div class="landing-tag">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polygon points="12 2 2 22 22 22"/>
+        </svg>
+        <span>Ingénierie de Prompts Assistée par IA</span>
+      </div>
+      
+      <h1 class="landing-title-main">
+        Optimisez vos interactions et <span class="accent-text">maximisez le potentiel</span> de vos modèles d'IA.
+      </h1>
+      
+      <p class="landing-description">
+        DarkMedia Prompt AI est votre bibliothèque privée et protocole d'ingénierie sémantique. Créez, catégorisez, optimisez avec l'aide de l'IA et accédez à vos configurations de prompts de haute précision instantanément.
+      </p>
+      
+      <div class="landing-steps">
+        <div class="landing-step">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <strong>Persistance Sécurisée</strong>
+            <span>Vos données sont stockées et synchronisées dans votre base cloud Supabase chiffrée.</span>
+          </div>
         </div>
-        <div class="form-group">
-          <label for="login-password">Mot de passe</label>
-          <input type="password" id="login-password" name="password" placeholder="••••••••" required autocomplete="current-password">
+        <div class="landing-step">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <strong>Optimisation Automatique</strong>
+            <span>Utilisez le moteur d'amélioration IA pour affiner la structure et la clarté de vos prompts.</span>
+          </div>
         </div>
-        <div id="login-error" class="login-error" style="display:none"></div>
-        <button type="submit" class="btn btn-primary" id="login-btn" style="width:100%;justify-content:center">
-          Se connecter
-        </button>
-        <button type="button" id="forgot-link" style="width:100%;margin-top:0.75rem;background:none;border:none;color:var(--text-muted,#64748b);font-size:0.83rem;cursor:pointer;padding:0.25rem">
-          Mot de passe oublié ?
-        </button>
-      </form>
-    </div>
-
-    <!-- VUE : Réinitialisation — saisie email -->
-    <div id="forgot-view" style="display:none">
-      <form id="forgot-form" class="login-form">
-        <div class="form-group">
-          <label for="forgot-email">Ton adresse email</label>
-          <input type="email" id="forgot-email" placeholder="ton@email.com" required autocomplete="email">
+        <div class="landing-step">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <strong>Recherche & Filtres Avancés</strong>
+            <span>Accédez instantanément à vos prompts par tags, catégories ou favoris via des raccourcis clavier rapides.</span>
+          </div>
         </div>
-        <div id="forgot-error" class="login-error" style="display:none"></div>
-        <div id="forgot-success" style="display:none;font-size:0.85rem;color:var(--success,#22c55e);margin-bottom:0.75rem;text-align:center;line-height:1.5"></div>
-        <button type="submit" class="btn btn-primary" id="forgot-btn" style="width:100%;justify-content:center">
-          Envoyer le lien de réinitialisation
-        </button>
-        <button type="button" id="back-to-login" style="width:100%;margin-top:0.75rem;background:none;border:none;color:var(--text-muted,#64748b);font-size:0.83rem;cursor:pointer;padding:0.25rem">
-          ← Retour à la connexion
-        </button>
-      </form>
+      </div>
     </div>
 
-    <!-- VUE : Nouveau mot de passe (retour du lien email) -->
-    <div id="reset-view" style="display:none">
-      <form id="reset-form" class="login-form">
-        <div class="form-group">
-          <label for="reset-password">Nouveau mot de passe</label>
-          <input type="password" id="reset-password" name="new-password" placeholder="••••••••" required autocomplete="new-password" minlength="8">
+    <!-- RIGHT: Login Box -->
+    <div class="landing-auth">
+      <div class="login-box">
+        <div class="login-logo">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+          </svg>
         </div>
-        <div class="form-group">
-          <label for="reset-confirm">Confirmer le mot de passe</label>
-          <input type="password" id="reset-confirm" name="confirm-password" placeholder="••••••••" required autocomplete="new-password" minlength="8">
-        </div>
-        <div id="reset-error" class="login-error" style="display:none"></div>
-        <button type="submit" class="btn btn-primary" id="reset-btn" style="width:100%;justify-content:center">
-          Mettre à jour le mot de passe
-        </button>
-      </form>
-    </div>
+        <h2 class="login-title">Espace Sémantique</h2>
+        <p class="login-subtitle" id="login-subtitle">Connecte-toi pour accéder à tes prompts</p>
 
+        <!-- VUE : Connexion -->
+        <div id="login-view" style="width: 100%;">
+          <form id="login-form" class="login-form">
+            <div class="form-group">
+              <label for="login-email">Email</label>
+              <input type="email" id="login-email" name="email" placeholder="ton@email.com" required autocomplete="username">
+            </div>
+            <div class="form-group">
+              <label for="login-password">Mot de passe</label>
+              <input type="password" id="login-password" name="password" placeholder="••••••••" required autocomplete="current-password">
+            </div>
+            <div id="login-error" class="login-error" style="display:none"></div>
+            <button type="submit" class="btn btn-primary" id="login-btn" style="width:100%;justify-content:center">
+              Se connecter
+            </button>
+            <button type="button" id="forgot-link" style="width:100%;margin-top:0.75rem;background:none;border:none;color:var(--text-muted,#64748b);font-size:0.83rem;cursor:pointer;padding:0.25rem">
+              Mot de passe oublié ?
+            </button>
+          </form>
+        </div>
+
+        <!-- VUE : Réinitialisation — saisie email -->
+        <div id="forgot-view" style="display:none; width: 100%;">
+          <form id="forgot-form" class="login-form">
+            <div class="form-group">
+              <label for="forgot-email">Ton adresse email</label>
+              <input type="email" id="forgot-email" placeholder="ton@email.com" required autocomplete="email">
+            </div>
+            <div id="forgot-error" class="login-error" style="display:none"></div>
+            <div id="forgot-success" style="display:none;font-size:0.85rem;color:var(--success,#22c55e);margin-bottom:0.75rem;text-align:center;line-height:1.5"></div>
+            <button type="submit" class="btn btn-primary" id="forgot-btn" style="width:100%;justify-content:center">
+              Envoyer le lien de réinitialisation
+            </button>
+            <button type="button" id="back-to-login" style="width:100%;margin-top:0.75rem;background:none;border:none;color:var(--text-muted,#64748b);font-size:0.83rem;cursor:pointer;padding:0.25rem">
+              ← Retour à la connexion
+            </button>
+          </form>
+        </div>
+
+        <!-- VUE : Nouveau mot de passe (retour du lien email) -->
+        <div id="reset-view" style="display:none; width: 100%;">
+          <form id="reset-form" class="login-form">
+            <div class="form-group">
+              <label for="reset-password">Nouveau mot de passe</label>
+              <input type="password" id="reset-password" name="new-password" placeholder="••••••••" required autocomplete="new-password" minlength="8">
+            </div>
+            <div class="form-group">
+              <label for="reset-confirm">Confirmer le mot de passe</label>
+              <input type="password" id="reset-confirm" name="confirm-password" placeholder="••••••••" required autocomplete="new-password" minlength="8">
+            </div>
+            <div id="reset-error" class="login-error" style="display:none"></div>
+            <button type="submit" class="btn btn-primary" id="reset-btn" style="width:100%;justify-content:center">
+              Mettre à jour le mot de passe
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+    
   </div>
 </div>
 

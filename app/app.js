@@ -38,7 +38,7 @@ window.addEventListener('beforeinstallprompt', (e) => {
   deferredPrompt = e;
   const installBtn = $('pwa-install-btn');
   if (installBtn) {
-    installBtn.style.display = 'inline-flex';
+    installBtn.classList.add('installable-pulse');
   }
 });
 
@@ -46,7 +46,7 @@ window.addEventListener('appinstalled', (e) => {
   deferredPrompt = null;
   const installBtn = $('pwa-install-btn');
   if (installBtn) {
-    installBtn.style.display = 'none';
+    installBtn.classList.remove('installable-pulse');
   }
   showToast('Application installée avec succès !', 'success');
 });
@@ -60,12 +60,20 @@ document.addEventListener('DOMContentLoaded', async () => {
   const installBtn = $('pwa-install-btn');
   if (installBtn) {
     installBtn.addEventListener('click', async () => {
-      if (!deferredPrompt) return;
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      console.log(`User response to the install prompt: ${outcome}`);
-      deferredPrompt = null;
-      installBtn.style.display = 'none';
+      if (!deferredPrompt) {
+        openPwaInstallModal();
+        return;
+      }
+      try {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        console.log(`User response to the install prompt: ${outcome}`);
+      } catch (err) {
+        console.error('Installation failed:', err);
+      } finally {
+        deferredPrompt = null;
+        installBtn.classList.remove('installable-pulse');
+      }
     });
   }
 
@@ -549,6 +557,9 @@ function bindEvents() {
   $('confirm-overlay').addEventListener('click', e => {
     if (e.target === $('confirm-overlay')) closeConfirm();
   });
+  $('pwa-install-overlay').addEventListener('click', e => {
+    if (e.target === $('pwa-install-overlay')) closePwaInstallModal();
+  });
 
   // Modal form submit
   $('prompt-form').addEventListener('submit', onFormSubmit);
@@ -567,7 +578,7 @@ function bindEvents() {
 
   // Keyboard shortcuts
   document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { closeModal(); closeDetailModal(); closeConfirm(); }
+    if (e.key === 'Escape') { closeModal(); closeDetailModal(); closeConfirm(); closePwaInstallModal(); }
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
       e.preventDefault();
       $('search-input').focus();
@@ -617,6 +628,7 @@ function onGlobalClick(e) {
     case 'toggle-ai-improve': toggleAiImproveSection(); break;
     case 'ai-improve':   improveWithAI(); break;
     case 'upgrade-prompt-ai': upgradePromptWithAI(el.dataset.id); break;
+    case 'close-pwa-install': closePwaInstallModal(); break;
   }
 }
 
@@ -919,6 +931,18 @@ async function executeDelete() {
   const id = pendingDeleteId;
   closeConfirm();
   await deletePrompt(id);
+}
+
+// =============================================
+// PWA INSTALL MODAL
+// =============================================
+
+function openPwaInstallModal() {
+  $('pwa-install-overlay').classList.add('open');
+}
+
+function closePwaInstallModal() {
+  $('pwa-install-overlay').classList.remove('open');
 }
 
 // =============================================

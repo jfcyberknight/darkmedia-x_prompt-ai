@@ -1,6 +1,19 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
-const GEMINI_KEY = Deno.env.get('GEMINI_KEY') ?? '';
+const GEMINI_KEY    = Deno.env.get('GEMINI_KEY')    ?? '';
+const ANTHROPIC_KEY = Deno.env.get('ANTHROPIC_KEY') ?? '';
+const OPENAI_KEY    = Deno.env.get('OPENAI_KEY')    ?? '';
+const DEEPSEEK_KEY  = Deno.env.get('DEEPSEEK_KEY')  ?? '';
+const OPENCODE_KEY  = Deno.env.get('OPENCODE_KEY')  ?? '';
+const OPENCODE_BASE = Deno.env.get('OPENCODE_BASE_URL') ?? 'https://api.openai.com/v1';
+
+const DEFAULT_MODELS: Record<string, string> = {
+  gemini:    'gemini-2.0-flash',
+  anthropic: 'claude-haiku-4-5-20251001',
+  openai:    'gpt-4o-mini',
+  deepseek:  'deepseek-chat',
+  opencode:  'gpt-4o-mini',
+};
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -29,58 +42,123 @@ Retourne UNIQUEMENT un objet JSON valide avec ces champs :
 - source: string (source ou origine inchangée, sinon chaîne vide)
 - category: string (la catégorie la plus appropriée parmi : Général, Documentation, Code, Analyse, Créatif, Automatisation, Débogage, Formation)`;
 
+function stripJsonMarkdown(text: string): string {
+  return text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+}
+
+function errResponse(status: number, message: string): Response {
+  return new Response(JSON.stringify({ error: message }), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  });
+}
+
+async function callGemini(systemPrompt: string, text: string, model: string): Promise<string> {
+  if (!GEMINI_KEY) throw new Error('GEMINI_KEY not configured');
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: systemPrompt }] },
+      contents: [{ role: 'user', parts: [{ text }] }],
+      generationConfig: { responseMimeType: 'application/json', temperature: 0.3, maxOutputTokens: 8000 },
+    }),
+  });
+  if (!res.ok) throw new Error(`Gemini API error ${res.status}: ${await res.text()}`);
+  const data = await res.json();
+  const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!content) throw new Error('Empty response from Gemini');
+  return content;
+}
+
+async function callAnthropic(systemPrompt: string, text: string, model: string): Promise<string> {
+  if (!ANTHROPIC_KEY) throw new Error('ANTHROPIC_KEY not configured');
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': ANTHROPIC_KEY,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: 8000,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: text }],
+    }),
+  });
+  if (!res.ok) throw new Error(`Anthropic API error ${res.status}: ${await res.text()}`);
+  const data = await res.json();
+  const content = data.content?.[0]?.text;
+  if (!content) throw new Error('Empty response from Anthropic');
+  return stripJsonMarkdown(content);
+}
+
+async function callOpenAICompat(systemPrompt: string, text: string, model: string, baseUrl: string, apiKey: string): Promise<string> {
+  if (!apiKey) throw new Error(`API key not configured for provider`);
+  const res = await fetch(`${baseUrl}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: text },
+      ],
+      response_format: { type: 'json_object' },
+      temperature: 0.3,
+      max_tokens: 8000,
+    }),
+  });
+  if (!res.ok) throw new Error(`API error ${res.status}: ${await res.text()}`);
+  const data = await res.json();
+  const content = data.choices?.[0]?.message?.content;
+  if (!content) throw new Error('Empty response from API');
+  return content;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    const { text, action = 'extract', instruction = '' } = await req.json();
+    const { text, action = 'extract', instruction = '', provider = 'gemini', model: requestedModel = '' } = await req.json();
 
-    if (!text) {
-      return new Response(JSON.stringify({ error: 'text is required' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    if (!text) return errResponse(400, 'text is required');
 
-    if (!GEMINI_KEY) {
-      return new Response(JSON.stringify({ error: 'GEMINI_KEY not configured' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    const model = requestedModel || DEFAULT_MODELS[provider] || DEFAULT_MODELS.gemini;
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${GEMINI_KEY}`;
     let selectedPrompt = action === 'upgrade' ? UPGRADE_PROMPT : SYSTEM_PROMPT;
-
-    // Consignes d'orientation fournies par l'utilisateur pour l'amélioration.
     if (action === 'upgrade' && typeof instruction === 'string' && instruction.trim()) {
       selectedPrompt += `\n\nCONSIGNES PRIORITAIRES DE L'UTILISATEUR pour orienter l'amélioration (respecte-les en priorité) :\n${instruction.trim()}`;
     }
 
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: selectedPrompt }] },
-        contents: [{ role: 'user', parts: [{ text }] }],
-        generationConfig: {
-          responseMimeType: 'application/json',
-          temperature: 0.3,
-          maxOutputTokens: 8000,
-        },
-      }),
-    });
+    let content: string;
 
-    if (!res.ok) {
-      const errBody = await res.text();
-      throw new Error(`Gemini API error ${res.status}: ${errBody}`);
+    switch (provider) {
+      case 'gemini':
+        content = await callGemini(selectedPrompt, text, model);
+        break;
+      case 'anthropic':
+        content = await callAnthropic(selectedPrompt, text, model);
+        break;
+      case 'openai':
+        content = await callOpenAICompat(selectedPrompt, text, model, 'https://api.openai.com/v1', OPENAI_KEY);
+        break;
+      case 'deepseek':
+        content = await callOpenAICompat(selectedPrompt, text, model, 'https://api.deepseek.com/v1', DEEPSEEK_KEY);
+        break;
+      case 'opencode':
+        content = await callOpenAICompat(selectedPrompt, text, model, OPENCODE_BASE, OPENCODE_KEY);
+        break;
+      default:
+        return errResponse(400, `Provider inconnu : ${provider}`);
     }
-
-    const data = await res.json();
-    const content = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!content) throw new Error('Empty response from Gemini');
 
     return new Response(content, {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

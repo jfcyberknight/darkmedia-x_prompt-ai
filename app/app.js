@@ -223,13 +223,40 @@ function bindLoginForm() {
   });
 }
 
+const AI_DEFAULT_MODELS = {
+  gemini:    'gemini-2.0-flash',
+  anthropic: 'claude-haiku-4-5-20251001',
+  openai:    'gpt-4o-mini',
+  deepseek:  'deepseek-chat',
+  opencode:  'gpt-4o-mini',
+};
+
+function getAIConfig() {
+  return {
+    provider: localStorage.getItem('ai_provider') || 'gemini',
+    model:    localStorage.getItem('ai_model')    || '',
+  };
+}
+
+function updateModelHint(provider) {
+  const hint = $('settings-ai-model-hint');
+  if (hint) hint.textContent = `Défaut : ${AI_DEFAULT_MODELS[provider] || '—'}`;
+}
+
 function bindSettingsForm() {
   $('settings-overlay').addEventListener('click', e => {
     if (e.target === $('settings-overlay')) closeSettings();
   });
+  $('settings-ai-provider').addEventListener('change', e => {
+    updateModelHint(e.target.value);
+  });
 }
 
 function openSettings() {
+  const cfg = getAIConfig();
+  $('settings-ai-provider').value = cfg.provider;
+  $('settings-ai-model').value    = cfg.model;
+  updateModelHint(cfg.provider);
   $('settings-overlay').classList.add('open');
 }
 
@@ -238,6 +265,15 @@ function closeSettings() {
 }
 
 function saveSettings() {
+  const provider = $('settings-ai-provider').value;
+  const model    = $('settings-ai-model').value.trim();
+  localStorage.setItem('ai_provider', provider);
+  if (model) {
+    localStorage.setItem('ai_model', model);
+  } else {
+    localStorage.removeItem('ai_model');
+  }
+  showToast('Paramètres sauvegardés', 'success');
   closeSettings();
 }
 
@@ -970,8 +1006,9 @@ async function analyzeWithAI() {
   status.textContent = '';
 
   try {
+    const aiCfg = getAIConfig();
     const { data, error } = await db.functions.invoke('ai-proxy', {
-      body: { text },
+      body: { text, provider: aiCfg.provider, model: aiCfg.model || undefined },
     });
 
     if (error) {
@@ -1061,8 +1098,9 @@ async function improveWithAI() {
   ].join('\n');
 
   try {
+    const aiCfg = getAIConfig();
     const { data, error } = await db.functions.invoke('ai-proxy', {
-      body: { text: textToOptimize, action: 'upgrade', instruction },
+      body: { text: textToOptimize, action: 'upgrade', instruction, provider: aiCfg.provider, model: aiCfg.model || undefined },
     });
 
     if (error) {
@@ -1126,8 +1164,9 @@ async function upgradePromptWithAI(id) {
   const textToOptimize = `Titre actuel : ${p.title}\nDescription actuelle : ${p.description || ''}\nModèle recommandé : ${p.model || ''}\nTags actuels : ${(p.tags || []).join(', ')}\nPrompt à optimiser :\n${p.content}`;
 
   try {
+    const aiCfg = getAIConfig();
     const { data, error } = await db.functions.invoke('ai-proxy', {
-      body: { text: textToOptimize, action: 'upgrade' },
+      body: { text: textToOptimize, action: 'upgrade', provider: aiCfg.provider, model: aiCfg.model || undefined },
     });
 
     if (error) {
@@ -1179,8 +1218,9 @@ async function autoCategorizePrompts() {
       const textToAnalyze = `Titre : ${p.title}\nDescription : ${p.description || ''}\nPrompt :\n${p.content}`;
 
       try {
+        const aiCfg = getAIConfig();
         const { data, error } = await db.functions.invoke('ai-proxy', {
-          body: { text: textToAnalyze, action: 'extract' }
+          body: { text: textToAnalyze, action: 'extract', provider: aiCfg.provider, model: aiCfg.model || undefined }
         });
 
         if (error) continue;

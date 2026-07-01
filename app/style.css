@@ -39,6 +39,7 @@ body {
   background: var(--bg-primary);
   color: var(--text-primary);
   min-height: 100vh;
+  min-height: 100dvh;
   line-height: 1.6;
 }
 
@@ -49,7 +50,9 @@ body {
 ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
 /* ---- LAYOUT ---- */
-#app { display: flex; flex-direction: column; min-height: 100vh; }
+/* 100dvh (avec repli 100vh) : sur mobile, 100vh inclut la zone masquée par les
+   barres du navigateur (Safari/Chrome), ce qui coupe le bas de l'interface. */
+#app { display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; }
 
 .topbar {
   display: flex;
@@ -94,6 +97,7 @@ body {
   padding: 1rem 0;
   overflow-y: auto;
   height: calc(100vh - 58px);
+  height: calc(100dvh - 58px);
   position: sticky;
   top: 58px;
 }
@@ -158,6 +162,7 @@ body {
   padding: 1.5rem;
   overflow-y: auto;
   height: calc(100vh - 58px);
+  height: calc(100dvh - 58px);
 }
 
 /* ---- TOOLBAR ---- */
@@ -450,6 +455,7 @@ body {
   width: 100%;
   max-width: 680px;
   max-height: 90vh;
+  max-height: 90dvh;
   display: flex;
   flex-direction: column;
   box-shadow: var(--shadow);
@@ -725,7 +731,11 @@ select option { background: var(--bg-card); }
   inset: 0;
   background: radial-gradient(circle at 10% 20%, #111115 0%, var(--bg-primary) 90%);
   display: flex;
-  align-items: center;
+  /* PAS de align-items:center ici : sur un conteneur scrollable, centrer un enfant
+     plus haut que l'écran fait déborder son haut AU-DESSUS de l'origine du scroll,
+     zone inatteignable (haut de la landing coupé sur mobile). Le centrage est fait
+     par margin:auto sur l'enfant, qui, lui, laisse le scroll atteindre le haut. */
+  align-items: flex-start;
   justify-content: center;
   z-index: 1000;
   overflow-y: auto;
@@ -739,6 +749,7 @@ select option { background: var(--bg-card); }
   max-width: 1060px;
   width: 100%;
   align-items: center;
+  margin: auto; /* centre verticalement quand il y a la place, scrollable sinon */
 }
 
 .landing-pitch {
@@ -1037,19 +1048,23 @@ select option { background: var(--bg-card); }
   #app-version { display: none; }
 
   .main-layout { grid-template-columns: 1fr; }
+  /* Filtres + catégories en pastilles qui S'ENVELOPPENT sur plusieurs lignes :
+     avec un défilement horizontal, tout ce qui dépasse l'écran était invisible
+     (aucun indice qu'on peut défiler) — on préfère tout montrer. */
   .sidebar {
     height: auto;
     position: static;
     display: flex;
     flex-direction: row;
-    overflow-x: auto;
+    flex-wrap: wrap;
+    gap: 0.3rem;
     border-right: none;
     border-bottom: 1px solid var(--border);
     padding: 0.5rem;
   }
-  .sidebar-section { display: flex; flex-direction: row; }
+  .sidebar-section { display: flex; flex-direction: row; flex-wrap: wrap; gap: 0.3rem; }
   .sidebar-label { display: none; }
-  .sidebar-item { padding: 0.4rem 0.75rem; border-radius: var(--radius-sm); white-space: nowrap; }
+  .sidebar-item { padding: 0.35rem 0.65rem; border-radius: var(--radius-sm); white-space: nowrap; border: 1px solid var(--border); }
   .content { height: auto; }
   .form-row { grid-template-columns: 1fr; }
   .prompts-grid { grid-template-columns: 1fr; }

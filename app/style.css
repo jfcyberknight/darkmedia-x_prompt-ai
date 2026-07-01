@@ -1027,6 +1027,15 @@ select option { background: var(--bg-card); }
 
 /* ---- RESPONSIVE ---- */
 @media (max-width: 768px) {
+  /* Topbar : désencombrer pour éviter le passage du titre sur deux lignes.
+     On garde la barre d'actions à gauche, mais on réduit les espacements,
+     on masque le badge version et le texte de la marque (le logo suffit). */
+  .topbar { padding: 0 0.75rem; gap: 0.5rem; }
+  .topbar-brand { font-size: 0.95rem; white-space: nowrap; flex-shrink: 0; }
+  .topbar-brand .brand-text { display: none; }
+  .topbar-actions { gap: 0.4rem; flex-wrap: nowrap; }
+  #app-version { display: none; }
+
   .main-layout { grid-template-columns: 1fr; }
   .sidebar {
     height: auto;

@@ -1,4 +1,9 @@
-const CACHE_NAME = 'prompt-ai-v2';
+// Réécrit à chaque déploiement par le workflow (bump de version) : changer les
+// octets de sw.js force le navigateur à installer le nouveau service worker,
+// dont l'activation purge l'ancien cache. Sans ça, la PWA installée reste figée
+// sur une vieille version (nom de cache constant = SW jamais considéré comme
+// mis à jour côté assets).
+const CACHE_NAME = 'prompt-ai-v1.0.20';
 const ASSETS = [
   './',
   './index.html',

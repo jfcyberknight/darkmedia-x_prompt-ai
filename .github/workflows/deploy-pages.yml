@@ -66,9 +66,15 @@ jobs:
           # app/app.js (version affichée dans l'UI)
           sed -i "s/const APP_VERSION = '[^']*';/const APP_VERSION = '${NEW}';/" app/app.js
 
+          # app/sw.js : changer le nom de cache modifie les octets du service worker,
+          # ce qui force le navigateur à l'installer à nouveau et à purger l'ancien
+          # cache à l'activation. Indispensable pour que la PWA installée se mette
+          # à jour (sinon elle sert indéfiniment la version en cache).
+          sed -i "s/const CACHE_NAME = '[^']*';/const CACHE_NAME = 'prompt-ai-v${NEW}';/" app/sw.js
+
           git config user.name "github-actions[bot]"
           git config user.email "$BUMP_EMAIL"
-          git add version.json app/app.js
+          git add version.json app/app.js app/sw.js
           git commit -m "chore: bump version to ${NEW}"
           git push origin HEAD:main
 

@@ -26,27 +26,32 @@ jobs:
           fetch-depth: 0
 
       # Incrémente la version à chaque merge sur main.
-      # Patch par défaut ; mettre "#minor" ou "#major" dans le message du commit
-      # de merge pour changer de palier. Le commit de bump porte [skip ci] et est
-      # poussé via GITHUB_TOKEN (qui ne redéclenche pas de workflow) -> pas de boucle.
-      # La version bumpée est présente dans l'arbre de travail pour le déploiement.
+      # Palier : patch par défaut ; mettre "#minor" ou "#major" dans le TITRE du
+      # commit de merge (sujet) pour changer de palier.
+      # Anti-boucle : le commit de bump est poussé via GITHUB_TOKEN, qui ne
+      # redéclenche jamais de workflow. Le garde-fou ci-dessous (basé sur l'IDENTITÉ
+      # du committer, pas sur le texte du message) couvre le cas d'une relance
+      # manuelle du workflow sur un commit de bump.
+      # NB : on n'utilise volontairement PAS "[skip ci]" — cette chaîne, même dans
+      # le corps d'un message de commit normal, ferait sauter tout le workflow par
+      # GitHub. Voir l'incident du merge #24.
       - name: Bump version
         run: |
           set -euo pipefail
-          LAST_MSG=$(git log -1 --pretty=%B)
 
-          # Garde-fou : ne pas re-bumper le commit de bump lui-même.
-          if echo "$LAST_MSG" | grep -qiE '\[skip ci\]|chore: bump version'; then
-            echo "Commit de bump détecté — bump ignoré."
+          BUMP_EMAIL="41898282+github-actions[bot]@users.noreply.github.com"
+          if [ "$(git log -1 --pretty=%ae)" = "$BUMP_EMAIL" ]; then
+            echo "Dernier commit = bump automatique — bump ignoré."
             exit 0
           fi
 
+          SUBJECT=$(git log -1 --pretty=%s)
           CURRENT=$(jq -r '.version' version.json)
           IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
 
-          if echo "$LAST_MSG" | grep -qi '#major'; then
+          if echo "$SUBJECT" | grep -qi '#major'; then
             MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0
-          elif echo "$LAST_MSG" | grep -qi '#minor'; then
+          elif echo "$SUBJECT" | grep -qi '#minor'; then
             MINOR=$((MINOR + 1)); PATCH=0
           else
             PATCH=$((PATCH + 1))
@@ -62,9 +67,9 @@ jobs:
           sed -i "s/const APP_VERSION = '[^']*';/const APP_VERSION = '${NEW}';/" app/app.js
 
           git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.email "$BUMP_EMAIL"
           git add version.json app/app.js
-          git commit -m "chore: bump version to ${NEW} [skip ci]"
+          git commit -m "chore: bump version to ${NEW}"
           git push origin HEAD:main
 
       - name: Install Doppler CLI

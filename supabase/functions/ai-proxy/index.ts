@@ -216,12 +216,11 @@ Deno.serve(async (req: Request) => {
         content = await callOpenAICompat(selectedPrompt, text, model, OPENCODE_BASE, OPENCODE_KEY, 'OPENCODE', maxTokens);
         break;
       case 'openrouter':
+        // Diagnostic : HTTP-Referer/X-Title retirés temporairement pour vérifier si
+        // un filtrage par referrer côté OpenRouter cause le 500 générique observé
+        // avec tous les modèles testés (auto, gpt-4o-mini, fusion).
         content = await callOpenAICompat(selectedPrompt, text, model, 'https://openrouter.ai/api/v1', OPENROUTER_KEY, 'OPENROUTER', maxTokens, {
           jsonFormat: false,
-          extraHeaders: {
-            'HTTP-Referer': 'https://jfcyberknight.github.io/darkmedia-x_prompt-ai',
-            'X-Title': 'DarkMedia Prompt AI',
-          },
         });
         break;
       default:

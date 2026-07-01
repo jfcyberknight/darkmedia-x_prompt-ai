@@ -259,6 +259,28 @@ Deno.serve(async (req: Request) => {
       });
     }
 
+    // Diagnostic : liste les modèles gratuits actuellement disponibles sur OpenRouter
+    // (id suffixé « :free » ou tarif prompt+completion nul). La liste change souvent —
+    // c'est la source de vérité en direct plutôt qu'une liste codée en dur.
+    if (action === 'freeModels') {
+      const r = await fetch('https://openrouter.ai/api/v1/models', {
+        headers: OPENROUTER_KEY ? { 'Authorization': `Bearer ${OPENROUTER_KEY}` } : {},
+      });
+      if (!r.ok) return errResponse(502, `OpenRouter /models a répondu ${r.status}`);
+      const all = (await r.json()).data ?? [];
+      const free = all
+        .filter((m: Record<string, unknown>) => {
+          const id = typeof m.id === 'string' ? m.id : '';
+          const p = (m.pricing ?? {}) as Record<string, unknown>;
+          const zero = Number(p.prompt) === 0 && Number(p.completion) === 0;
+          return id.endsWith(':free') || zero;
+        })
+        .map((m: Record<string, unknown>) => ({ id: m.id, name: m.name, context: m.context_length }));
+      return new Response(JSON.stringify({ count: free.length, free }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     if (!text) return errResponse(400, 'text is required');
 
     let selectedPrompt = action === 'upgrade' ? UPGRADE_PROMPT : SYSTEM_PROMPT;

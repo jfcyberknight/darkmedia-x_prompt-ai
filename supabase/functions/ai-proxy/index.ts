@@ -6,13 +6,15 @@ const OPENAI_KEY    = Deno.env.get('OPENAI_KEY')    ?? '';
 const DEEPSEEK_KEY  = Deno.env.get('DEEPSEEK_KEY')  ?? '';
 const OPENCODE_KEY  = Deno.env.get('OPENCODE_KEY')  ?? '';
 const OPENCODE_BASE = Deno.env.get('OPENCODE_BASE_URL') ?? 'https://api.openai.com/v1';
+const OPENROUTER_KEY = Deno.env.get('OPENROUTER_KEY') ?? '';
 
 const DEFAULT_MODELS: Record<string, string> = {
-  gemini:    'gemini-2.0-flash',
-  anthropic: 'claude-haiku-4-5',
-  openai:    'gpt-4o-mini',
-  deepseek:  'deepseek-chat',
-  opencode:  'gpt-4o-mini',
+  gemini:     'gemini-2.0-flash',
+  anthropic:  'claude-haiku-4-5',
+  openai:     'gpt-4o-mini',
+  deepseek:   'deepseek-chat',
+  opencode:   'gpt-4o-mini',
+  openrouter: 'openrouter/auto',
 };
 
 const corsHeaders = {
@@ -155,6 +157,9 @@ Deno.serve(async (req: Request) => {
         break;
       case 'opencode':
         content = await callOpenAICompat(selectedPrompt, text, model, OPENCODE_BASE, OPENCODE_KEY);
+        break;
+      case 'openrouter':
+        content = await callOpenAICompat(selectedPrompt, text, model, 'https://openrouter.ai/api/v1', OPENROUTER_KEY);
         break;
       default:
         return errResponse(400, `Provider inconnu : ${provider}`);

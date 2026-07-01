@@ -97,8 +97,8 @@ async function callAnthropic(systemPrompt: string, text: string, model: string):
   return stripJsonMarkdown(content);
 }
 
-async function callOpenAICompat(systemPrompt: string, text: string, model: string, baseUrl: string, apiKey: string): Promise<string> {
-  if (!apiKey) throw new Error(`API key not configured for provider`);
+async function callOpenAICompat(systemPrompt: string, text: string, model: string, baseUrl: string, apiKey: string, providerName: string): Promise<string> {
+  if (!apiKey) throw new Error(`${providerName} API key not configured`);
   const res = await fetch(`${baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -150,16 +150,16 @@ Deno.serve(async (req: Request) => {
         content = await callAnthropic(selectedPrompt, text, model);
         break;
       case 'openai':
-        content = await callOpenAICompat(selectedPrompt, text, model, 'https://api.openai.com/v1', OPENAI_KEY);
+        content = await callOpenAICompat(selectedPrompt, text, model, 'https://api.openai.com/v1', OPENAI_KEY, 'OPENAI');
         break;
       case 'deepseek':
-        content = await callOpenAICompat(selectedPrompt, text, model, 'https://api.deepseek.com/v1', DEEPSEEK_KEY);
+        content = await callOpenAICompat(selectedPrompt, text, model, 'https://api.deepseek.com/v1', DEEPSEEK_KEY, 'DEEPSEEK');
         break;
       case 'opencode':
-        content = await callOpenAICompat(selectedPrompt, text, model, OPENCODE_BASE, OPENCODE_KEY);
+        content = await callOpenAICompat(selectedPrompt, text, model, OPENCODE_BASE, OPENCODE_KEY, 'OPENCODE');
         break;
       case 'openrouter':
-        content = await callOpenAICompat(selectedPrompt, text, model, 'https://openrouter.ai/api/v1', OPENROUTER_KEY);
+        content = await callOpenAICompat(selectedPrompt, text, model, 'https://openrouter.ai/api/v1', OPENROUTER_KEY, 'OPENROUTER');
         break;
       default:
         return errResponse(400, `Provider inconnu : ${provider}`);

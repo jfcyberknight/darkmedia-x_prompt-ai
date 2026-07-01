@@ -1,18 +1,20 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
-const GEMINI_KEY    = Deno.env.get('GEMINI_KEY')    ?? '';
-const ANTHROPIC_KEY = Deno.env.get('ANTHROPIC_KEY') ?? '';
-const OPENAI_KEY    = Deno.env.get('OPENAI_KEY')    ?? '';
-const DEEPSEEK_KEY  = Deno.env.get('DEEPSEEK_KEY')  ?? '';
-const OPENCODE_KEY  = Deno.env.get('OPENCODE_KEY')  ?? '';
-const OPENCODE_BASE = Deno.env.get('OPENCODE_BASE_URL') ?? 'https://api.openai.com/v1';
+const GEMINI_KEY     = Deno.env.get('GEMINI_API_KEY')    ?? '';
+const ANTHROPIC_KEY  = Deno.env.get('ANTHROPIC_API_KEY') ?? '';
+const OPENAI_KEY     = Deno.env.get('OPENAI_API_KEY')    ?? '';
+const DEEPSEEK_KEY   = Deno.env.get('DEEPSEEK_API_KEY')  ?? '';
+const OPENCODE_KEY   = Deno.env.get('OPENCODE_API_KEY')  ?? '';
+const OPENCODE_BASE  = Deno.env.get('OPENCODE_BASE_URL') ?? 'https://api.openai.com/v1';
+const OPENROUTER_KEY = Deno.env.get('OPENROUTER_API_KEY') ?? '';
 
 const DEFAULT_MODELS: Record<string, string> = {
-  gemini:    'gemini-2.0-flash',
-  anthropic: 'claude-haiku-4-5',
-  openai:    'gpt-4o-mini',
-  deepseek:  'deepseek-chat',
-  opencode:  'gpt-4o-mini',
+  gemini:     'gemini-2.0-flash',
+  anthropic:  'claude-haiku-4-5',
+  openai:     'gpt-4o-mini',
+  deepseek:   'deepseek-chat',
+  opencode:   'gpt-4o-mini',
+  openrouter: Deno.env.get('OPENROUTER_MODEL') || 'openrouter/auto',
 };
 
 const corsHeaders = {
@@ -54,7 +56,7 @@ function errResponse(status: number, message: string): Response {
 }
 
 async function callGemini(systemPrompt: string, text: string, model: string): Promise<string> {
-  if (!GEMINI_KEY) throw new Error('GEMINI_KEY not configured');
+  if (!GEMINI_KEY) throw new Error('GEMINI_API_KEY not configured');
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`;
   const res = await fetch(url, {
     method: 'POST',
@@ -73,7 +75,7 @@ async function callGemini(systemPrompt: string, text: string, model: string): Pr
 }
 
 async function callAnthropic(systemPrompt: string, text: string, model: string): Promise<string> {
-  if (!ANTHROPIC_KEY) throw new Error('ANTHROPIC_KEY not configured');
+  if (!ANTHROPIC_KEY) throw new Error('ANTHROPIC_API_KEY not configured');
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -155,6 +157,9 @@ Deno.serve(async (req: Request) => {
         break;
       case 'opencode':
         content = await callOpenAICompat(selectedPrompt, text, model, OPENCODE_BASE, OPENCODE_KEY);
+        break;
+      case 'openrouter':
+        content = await callOpenAICompat(selectedPrompt, text, model, 'https://openrouter.ai/api/v1', OPENROUTER_KEY);
         break;
       default:
         return errResponse(400, `Provider inconnu : ${provider}`);

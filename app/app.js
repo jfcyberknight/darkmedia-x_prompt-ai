@@ -229,6 +229,7 @@ const AI_DEFAULT_MODELS = {
   openai:    'gpt-4o-mini',
   deepseek:  'deepseek-chat',
   opencode:  'gpt-4o-mini',
+  openrouter: 'openrouter/auto',
 };
 
 const AI_MODELS_BY_PROVIDER = {
@@ -254,6 +255,14 @@ const AI_MODELS_BY_PROVIDER = {
   opencode: [
     { value: 'gpt-4o-mini', label: 'GPT-4o mini (rapide, économique)' },
     { value: 'gpt-4o',      label: 'GPT-4o (équilibré)' },
+  ],
+  openrouter: [
+    { value: 'openrouter/auto',                  label: 'Auto (meilleur modèle disponible)' },
+    { value: 'anthropic/claude-sonnet-5',        label: 'Claude Sonnet 5 (équilibré)' },
+    { value: 'anthropic/claude-opus-4-8',        label: 'Claude Opus 4.8 (le plus capable)' },
+    { value: 'openai/gpt-4o-mini',               label: 'GPT-4o mini (rapide, économique)' },
+    { value: 'google/gemini-2.5-flash',          label: 'Gemini 2.5 Flash' },
+    { value: 'meta-llama/llama-3.3-70b-instruct',label: 'Llama 3.3 70B' },
   ],
 };
 

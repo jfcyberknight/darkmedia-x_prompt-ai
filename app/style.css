@@ -55,6 +55,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  /* Barre d'actions à gauche, marque à droite (le contenu défile toujours à droite). */
+  flex-direction: row-reverse;
   padding: 0 1.5rem;
   height: 58px;
   border-bottom: 1px solid var(--border);

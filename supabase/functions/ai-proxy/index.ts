@@ -171,13 +171,14 @@ Deno.serve(async (req: Request) => {
   let debug = false;
   let provider = 'gemini';
   let action = 'extract';
+  let model = '';
   try {
     const payload = await req.json();
     ({ action = 'extract', provider = 'gemini' } = payload);
     const { text, instruction = '', model: requestedModel = '', maxTokens: requestedMaxTokens } = payload;
     debug = payload.debug === true;
 
-    const model = requestedModel || DEFAULT_MODELS[provider] || DEFAULT_MODELS.gemini;
+    model = requestedModel || DEFAULT_MODELS[provider] || DEFAULT_MODELS.gemini;
     // Plafond de génération. Par défaut 8000 ; un test de connexion peut demander
     // une petite valeur pour une réponse quasi instantanée. Borné entre 16 et 8000.
     const maxTokens = Math.min(Math.max(Number(requestedMaxTokens) || 8000, 16), 8000);
@@ -234,10 +235,14 @@ Deno.serve(async (req: Request) => {
   } catch (err) {
     // Journalisé côté serveur (visible dans les logs Supabase) pour diagnostiquer les
     // 500 sans exposer le détail de l'erreur brute au client par défaut.
-    console.error(`[ai-proxy] provider=${provider} action=${action} error=`, err);
+    console.error(`[ai-proxy] provider=${provider} action=${action} model=${model} error=`, err);
     const body: Record<string, unknown> = { error: err.message };
-    // N'expose la topologie des clés (booléens de présence) que sur demande explicite (bouton de test).
-    if (debug) body.configured = keyStatus();
+    // N'expose la topologie des clés (booléens de présence) et le modèle résolu que
+    // sur demande explicite (bouton de test), pour diagnostiquer sans fuiter en temps normal.
+    if (debug) {
+      body.configured = keyStatus();
+      body.model = model;
+    }
     return new Response(JSON.stringify(body), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

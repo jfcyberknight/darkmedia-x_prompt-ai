@@ -48,6 +48,20 @@ function stripJsonMarkdown(text: string): string {
   return text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
 }
 
+// Renvoie, pour chaque provider, si sa clé API est présente côté serveur.
+// Ne renvoie jamais la valeur des clés — uniquement un booléen de présence,
+// pour distinguer une clé manquante d'une clé invalide lors du diagnostic.
+function keyStatus(): Record<string, boolean> {
+  return {
+    gemini:     !!GEMINI_KEY,
+    anthropic:  !!ANTHROPIC_KEY,
+    openai:     !!OPENAI_KEY,
+    deepseek:   !!DEEPSEEK_KEY,
+    opencode:   !!OPENCODE_KEY,
+    openrouter: !!OPENROUTER_KEY,
+  };
+}
+
 function errResponse(status: number, message: string): Response {
   return new Response(JSON.stringify({ error: message }), {
     status,
@@ -128,12 +142,22 @@ Deno.serve(async (req: Request) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
+  let debug = false;
   try {
-    const { text, action = 'extract', instruction = '', provider = 'gemini', model: requestedModel = '' } = await req.json();
-
-    if (!text) return errResponse(400, 'text is required');
+    const payload = await req.json();
+    const { text, action = 'extract', instruction = '', provider = 'gemini', model: requestedModel = '' } = payload;
+    debug = payload.debug === true;
 
     const model = requestedModel || DEFAULT_MODELS[provider] || DEFAULT_MODELS.gemini;
+
+    // Diagnostic léger : vérifie la présence des clés sans appeler de provider.
+    if (action === 'ping') {
+      return new Response(JSON.stringify({ ok: true, provider, model, configured: keyStatus() }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (!text) return errResponse(400, 'text is required');
 
     let selectedPrompt = action === 'upgrade' ? UPGRADE_PROMPT : SYSTEM_PROMPT;
     if (action === 'upgrade' && typeof instruction === 'string' && instruction.trim()) {
@@ -170,7 +194,10 @@ Deno.serve(async (req: Request) => {
     });
 
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
+    const body: Record<string, unknown> = { error: err.message };
+    // N'expose la topologie des clés (booléens de présence) que sur demande explicite (bouton de test).
+    if (debug) body.configured = keyStatus();
+    return new Response(JSON.stringify(body), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

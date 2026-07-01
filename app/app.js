@@ -19,7 +19,7 @@ let state = {
 };
 
 // ---- App version (source de vérité affichée dans l'UI) ----
-const APP_VERSION = '1.0.4';
+const APP_VERSION = '1.0.5';
 
 // ---- DOM refs ----
 const $ = id => document.getElementById(id);

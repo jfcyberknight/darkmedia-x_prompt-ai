@@ -239,7 +239,7 @@ const AI_DEFAULT_MODELS = {
   openai:    'gpt-4o-mini',
   deepseek:  'deepseek-chat',
   opencode:  'gpt-4o-mini',
-  openrouter: 'openrouter/auto',
+  openrouter: 'openai/gpt-4o-mini',
 };
 
 const AI_MODELS_BY_PROVIDER = {

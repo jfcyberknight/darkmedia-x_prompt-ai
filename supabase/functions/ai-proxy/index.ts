@@ -14,7 +14,9 @@ const DEFAULT_MODELS: Record<string, string> = {
   openai:     'gpt-4o-mini',
   deepseek:   'deepseek-chat',
   opencode:   'gpt-4o-mini',
-  openrouter: Deno.env.get('OPENROUTER_MODEL') || 'openrouter/auto',
+  // Modèle concret par défaut (le routeur "openrouter/auto" est instable et
+  // renvoie parfois des 500). Surchargé par le secret OPENROUTER_MODEL s'il est défini.
+  openrouter: Deno.env.get('OPENROUTER_MODEL') || 'openai/gpt-4o-mini',
 };
 
 const corsHeaders = {
@@ -111,30 +113,54 @@ async function callAnthropic(systemPrompt: string, text: string, model: string, 
   return stripJsonMarkdown(content);
 }
 
-async function callOpenAICompat(systemPrompt: string, text: string, model: string, baseUrl: string, apiKey: string, providerName: string, maxTokens: number): Promise<string> {
+interface OpenAICompatOptions {
+  // Certains routeurs (ex : openrouter/auto) gèrent mal response_format json_object
+  // et renvoient une 500 : on peut le désactiver et se reposer sur la consigne
+  // "retourne UNIQUEMENT du JSON" du prompt.
+  jsonFormat?: boolean;
+  extraHeaders?: Record<string, string>;
+}
+
+async function callOpenAICompat(
+  systemPrompt: string,
+  text: string,
+  model: string,
+  baseUrl: string,
+  apiKey: string,
+  providerName: string,
+  maxTokens: number,
+  opts: OpenAICompatOptions = {},
+): Promise<string> {
   if (!apiKey) throw new Error(`${providerName} API key not configured`);
+  const { jsonFormat = true, extraHeaders = {} } = opts;
+
+  const requestBody: Record<string, unknown> = {
+    model,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: text },
+    ],
+    temperature: 0.3,
+    max_tokens: maxTokens,
+  };
+  if (jsonFormat) requestBody.response_format = { type: 'json_object' };
+
   const res = await fetch(`${baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${apiKey}`,
+      ...extraHeaders,
     },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: text },
-      ],
-      response_format: { type: 'json_object' },
-      temperature: 0.3,
-      max_tokens: maxTokens,
-    }),
+    body: JSON.stringify(requestBody),
   });
   if (!res.ok) throw new Error(`API error ${res.status}: ${await res.text()}`);
   const data = await res.json();
   const content = data.choices?.[0]?.message?.content;
   if (!content) throw new Error('Empty response from API');
-  return content;
+  // Défensif : quand response_format n'est pas imposé, certains modèles encadrent
+  // le JSON dans un bloc Markdown ```json … ``` — on le retire.
+  return stripJsonMarkdown(content);
 }
 
 Deno.serve(async (req: Request) => {
@@ -186,7 +212,13 @@ Deno.serve(async (req: Request) => {
         content = await callOpenAICompat(selectedPrompt, text, model, OPENCODE_BASE, OPENCODE_KEY, 'OPENCODE', maxTokens);
         break;
       case 'openrouter':
-        content = await callOpenAICompat(selectedPrompt, text, model, 'https://openrouter.ai/api/v1', OPENROUTER_KEY, 'OPENROUTER', maxTokens);
+        content = await callOpenAICompat(selectedPrompt, text, model, 'https://openrouter.ai/api/v1', OPENROUTER_KEY, 'OPENROUTER', maxTokens, {
+          jsonFormat: false,
+          extraHeaders: {
+            'HTTP-Referer': 'https://jfcyberknight.github.io/darkmedia-x_prompt-ai',
+            'X-Title': 'DarkMedia Prompt AI',
+          },
+        });
         break;
       default:
         return errResponse(400, `Provider inconnu : ${provider}`);

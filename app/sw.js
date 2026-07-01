@@ -1,4 +1,4 @@
-const CACHE_NAME = 'prompt-ai-v1';
+const CACHE_NAME = 'prompt-ai-v2';
 const ASSETS = [
   './',
   './index.html',
@@ -60,7 +60,11 @@ self.addEventListener('fetch', (e) => {
           const url = new URL(e.request.url);
           // Only cache same-origin assets or specific safe external domains (like google fonts/supabase JS SDK)
           if (url.origin === self.location.origin || url.hostname.includes('fonts.gstatic.com') || url.hostname.includes('fonts.googleapis.com')) {
-            caches.open(CACHE_NAME).then((cache) => cache.put(e.request, networkResponse.clone()));
+            // Clone synchronously — the response body is consumed once we return it below,
+            // so cloning inside the async caches.open() callback would throw
+            // "Response body is already used".
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(e.request, responseToCache));
           }
         }
         return networkResponse;

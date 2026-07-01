@@ -698,6 +698,7 @@ function onGlobalClick(e) {
     case 'close-settings': closeSettings(); break;
     case 'save-settings': saveSettings(); break;
     case 'auto-categorize-prompts': autoCategorizePrompts(); break;
+    case 'test-ai-connection': testAIConnection(); break;
     case 'close-modal':  closeModal(); break;
     case 'close-detail': closeDetailModal(); break;
     case 'close-confirm': closeConfirm(); break;
@@ -1041,6 +1042,22 @@ function toggleAiParseSection() {
   if (!isOpen) $('ai-paste-input').focus();
 }
 
+// Extrait le message d'erreur réel renvoyé par la fonction Edge ai-proxy.
+// Le SDK Supabase masque le corps de la réponse dans error.context ; on le lit
+// pour afficher un message utile à l'utilisateur plutôt qu'un générique "500".
+async function extractEdgeError(error) {
+  let msg = error?.message || 'Erreur Edge Function';
+  try {
+    const body = await error?.context?.json?.();
+    if (body?.error) msg = body.error;
+    if (body?.configured) {
+      const present = Object.entries(body.configured).filter(([, v]) => v).map(([k]) => k);
+      msg += ` — clés configurées côté serveur : ${present.length ? present.join(', ') : 'aucune'}`;
+    }
+  } catch (_) {}
+  return msg;
+}
+
 async function analyzeWithAI() {
   const text = $('ai-paste-input').value.trim();
   if (!text) { showToast('Colle du texte avant d\'analyser', 'error'); return; }
@@ -1058,14 +1075,7 @@ async function analyzeWithAI() {
       body: { text, provider: aiCfg.provider, model: aiCfg.model || undefined },
     });
 
-    if (error) {
-      let msg = error.message || 'Erreur Edge Function';
-      try {
-        const body = await error.context?.json?.();
-        if (body?.error) msg = body.error;
-      } catch (_) {}
-      throw new Error(msg);
-    }
+    if (error) throw new Error(await extractEdgeError(error));
 
     const parsed = typeof data === 'string' ? JSON.parse(data) : data;
 
@@ -1150,14 +1160,7 @@ async function improveWithAI() {
       body: { text: textToOptimize, action: 'upgrade', instruction, provider: aiCfg.provider, model: aiCfg.model || undefined },
     });
 
-    if (error) {
-      let msg = error.message || 'Erreur Edge Function';
-      try {
-        const body = await error.context?.json?.();
-        if (body?.error) msg = body.error;
-      } catch (_) {}
-      throw new Error(msg);
-    }
+    if (error) throw new Error(await extractEdgeError(error));
 
     const parsed = typeof data === 'string' ? JSON.parse(data) : data;
 
@@ -1216,14 +1219,7 @@ async function upgradePromptWithAI(id) {
       body: { text: textToOptimize, action: 'upgrade', provider: aiCfg.provider, model: aiCfg.model || undefined },
     });
 
-    if (error) {
-      let msg = error.message || 'Erreur Edge Function';
-      try {
-        const body = await error.context?.json?.();
-        if (body?.error) msg = body.error;
-      } catch (_) {}
-      throw new Error(msg);
-    }
+    if (error) throw new Error(await extractEdgeError(error));
 
     const parsed = typeof data === 'string' ? JSON.parse(data) : data;
 
@@ -1256,6 +1252,7 @@ async function autoCategorizePrompts() {
   btn.disabled = true;
 
   let successCount = 0;
+  let firstError = null;
 
   try {
     for (let i = 0; i < prompts.length; i++) {
@@ -1270,7 +1267,10 @@ async function autoCategorizePrompts() {
           body: { text: textToAnalyze, action: 'extract', provider: aiCfg.provider, model: aiCfg.model || undefined }
         });
 
-        if (error) continue;
+        if (error) {
+          if (!firstError) firstError = await extractEdgeError(error);
+          continue;
+        }
 
         const parsed = typeof data === 'string' ? JSON.parse(data) : data;
         const categoryName = parsed.category;
@@ -1292,7 +1292,9 @@ async function autoCategorizePrompts() {
         if (!dbError) {
           successCount++;
         }
-      } catch (_) {}
+      } catch (e) {
+        if (!firstError) firstError = e.message;
+      }
     }
 
     if (successCount > 0) {
@@ -1300,12 +1302,50 @@ async function autoCategorizePrompts() {
       await loadPrompts();
       renderSidebar();
       renderPrompts();
+    } else if (firstError) {
+      showToast('Échec de la catégorisation : ' + firstError, 'error');
     } else {
       showToast('Aucun prompt n\'a pu être catégorisé.', 'warning');
     }
 
   } catch (err) {
     showToast('Erreur lors de la catégorisation : ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalHtml;
+  }
+}
+
+// Teste la connexion au provider IA sélectionné et affiche le résultat exact
+// (succès, ou message d'erreur précis + clés configurées côté serveur).
+async function testAIConnection() {
+  const btn = $('btn-test-ai');
+  const statusEl = $('settings-ai-test-status');
+  if (!btn) return;
+
+  const provider = $('settings-ai-provider').value;
+  const model = $('settings-ai-model').value.trim();
+  const originalHtml = btn.innerHTML;
+
+  btn.disabled = true;
+  btn.innerHTML = `<span class="loader"></span> Test en cours…`;
+  if (statusEl) { statusEl.textContent = ''; statusEl.style.color = 'var(--text-secondary)'; }
+
+  try {
+    const { data, error } = await db.functions.invoke('ai-proxy', {
+      body: { text: 'Test de connexion.', action: 'extract', provider, model: model || undefined, debug: true },
+    });
+
+    if (error) throw new Error(await extractEdgeError(error));
+
+    // On valide juste que la réponse est du JSON exploitable.
+    if (typeof data === 'string') { try { JSON.parse(data); } catch (_) {} }
+
+    if (statusEl) { statusEl.textContent = `✓ Connexion réussie (${provider})`; statusEl.style.color = '#22c55e'; }
+    showToast('Connexion IA réussie', 'success');
+  } catch (err) {
+    if (statusEl) { statusEl.textContent = `✗ ${err.message}`; statusEl.style.color = '#ef4444'; }
+    showToast('Échec du test IA', 'error');
   } finally {
     btn.disabled = false;
     btn.innerHTML = originalHtml;

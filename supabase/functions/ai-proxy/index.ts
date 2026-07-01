@@ -14,12 +14,11 @@ const DEFAULT_MODELS: Record<string, string> = {
   openai:     'gpt-4o-mini',
   deepseek:   'deepseek-chat',
   opencode:   'gpt-4o-mini',
-  // Modèle gratuit concret (zéro crédit) et fiable : contrairement à openrouter/free
-  // (routeur qui pioche un modèle gratuit au hasard, parfois un modèle de
-  // raisonnement qui consomme son budget de tokens en réflexion avant de répondre),
-  // celui-ci est un modèle de chat classique qui répond directement.
-  // Surchargé par OPENROUTER_MODEL s'il est défini.
-  openrouter: Deno.env.get('OPENROUTER_MODEL') || 'deepseek/deepseek-chat-v3-0324:free',
+  // DeepSeek V3 (payant mais ultra-économique : ~0,001 $/extraction). Les variantes
+  // gratuites d'OpenRouter (routeur openrouter/free ou suffixe :free) sont retirées /
+  // rate-limitées sans préavis — ingérable pour une app. Ce modèle concret et fiable
+  // est celui qu'OpenRouter recommande lui-même. Surchargé par OPENROUTER_MODEL.
+  openrouter: Deno.env.get('OPENROUTER_MODEL') || 'deepseek/deepseek-chat-v3-0324',
 };
 
 const corsHeaders = {
@@ -240,14 +239,14 @@ Deno.serve(async (req: Request) => {
     debug = payload.debug === true;
 
     model = requestedModel || DEFAULT_MODELS[provider] || DEFAULT_MODELS.gemini;
-    // openrouter/free est un routeur aléatoire instable : il tombe parfois sur un
-    // modèle de raisonnement qui épuise tout son budget de tokens en réflexion interne
-    // sans produire de contenu visible (« Empty response from API »). On le remappe
-    // systématiquement vers un modèle gratuit concret et fiable — même quand le client
-    // le demande explicitement (préférence enregistrée), pour éviter cet écueil sans
-    // dépendre d'un redéploiement du front.
-    if (provider === 'openrouter' && model === 'openrouter/free') {
-      model = 'deepseek/deepseek-chat-v3-0324:free';
+    // Les modèles gratuits OpenRouter (routeur openrouter/free, ou variante :free)
+    // sont instables : routage aléatoire vers un modèle de raisonnement qui rend une
+    // réponse vide, retrait/rate-limit sans préavis. On remappe donc toute demande de
+    // modèle gratuit vers un modèle concret fiable (DeepSeek V3, très économique) —
+    // même quand le client le demande explicitement (préférence enregistrée), pour
+    // éviter ces écueils sans dépendre d'un redéploiement du front.
+    if (provider === 'openrouter' && (model === 'openrouter/free' || model.endsWith(':free'))) {
+      model = 'deepseek/deepseek-chat-v3-0324';
     }
     // Plafond de génération. Par défaut 8000 ; un test de connexion peut demander
     // une petite valeur pour une réponse quasi instantanée. Borné entre 16 et 8000.

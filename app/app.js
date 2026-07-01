@@ -239,7 +239,7 @@ const AI_DEFAULT_MODELS = {
   openai:    'gpt-4o-mini',
   deepseek:  'deepseek-chat',
   opencode:  'gpt-4o-mini',
-  openrouter: 'deepseek/deepseek-chat-v3-0324:free',
+  openrouter: 'deepseek/deepseek-chat-v3-0324',
 };
 
 const AI_MODELS_BY_PROVIDER = {
@@ -267,15 +267,14 @@ const AI_MODELS_BY_PROVIDER = {
     { value: 'gpt-4o',      label: 'GPT-4o (équilibré)' },
   ],
   openrouter: [
-    { value: 'deepseek/deepseek-chat-v3-0324:free',    label: 'DeepSeek V3 (gratuit, recommandé)' },
-    { value: 'meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B (gratuit)' },
-    { value: 'openrouter/free',                  label: 'Gratuit (routeur aléatoire, moins fiable)' },
-    { value: 'openrouter/fusion',                label: 'Fusion (panel multi-modèles + synthèse, le plus précis)' },
-    { value: 'openrouter/auto',                  label: 'Auto (meilleur modèle disponible)' },
-    { value: 'anthropic/claude-sonnet-5',        label: 'Claude Sonnet 5 (équilibré)' },
-    { value: 'anthropic/claude-opus-4-8',        label: 'Claude Opus 4.8 (le plus capable)' },
+    { value: 'deepseek/deepseek-chat-v3-0324',   label: 'DeepSeek V3 (très économique, recommandé)' },
     { value: 'openai/gpt-4o-mini',               label: 'GPT-4o mini (rapide, économique)' },
     { value: 'google/gemini-2.5-flash',          label: 'Gemini 2.5 Flash' },
+    { value: 'anthropic/claude-sonnet-5',        label: 'Claude Sonnet 5 (équilibré)' },
+    { value: 'anthropic/claude-opus-4-8',        label: 'Claude Opus 4.8 (le plus capable)' },
+    { value: 'openrouter/fusion',                label: 'Fusion (panel multi-modèles + synthèse, le plus précis)' },
+    { value: 'openrouter/auto',                  label: 'Auto (meilleur modèle disponible)' },
+    { value: 'meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B (gratuit, dispo variable)' },
   ],
 };
 

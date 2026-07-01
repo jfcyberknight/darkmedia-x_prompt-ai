@@ -50,6 +50,35 @@ function stripJsonMarkdown(text: string): string {
   return text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
 }
 
+// Certains modèles (surtout via openrouter/free, qui pioche un modèle gratuit au
+// hasard) ignorent la consigne "retourne UNIQUEMENT du JSON" et préfixent leur
+// réponse d'un raisonnement en texte libre (ex: "We need to..."). Plutôt que de
+// planter sur un JSON.parse invalide, on extrait le premier objet JSON complet
+// (comptage d'accolades) trouvé dans le texte.
+function extractJsonObject(text: string): string {
+  const stripped = stripJsonMarkdown(text);
+  try {
+    JSON.parse(stripped);
+    return stripped;
+  } catch {
+    const start = stripped.indexOf('{');
+    if (start === -1) throw new Error('Réponse du modèle sans JSON exploitable');
+    let depth = 0;
+    for (let i = start; i < stripped.length; i++) {
+      if (stripped[i] === '{') depth++;
+      else if (stripped[i] === '}') {
+        depth--;
+        if (depth === 0) {
+          const candidate = stripped.slice(start, i + 1);
+          JSON.parse(candidate);
+          return candidate;
+        }
+      }
+    }
+    throw new Error('Réponse du modèle sans JSON exploitable (objet non fermé)');
+  }
+}
+
 // Renvoie, pour chaque provider, si sa clé API est présente côté serveur.
 // Ne renvoie jamais la valeur des clés — uniquement un booléen de présence,
 // pour distinguer une clé manquante d'une clé invalide lors du diagnostic.
@@ -141,13 +170,13 @@ async function callAnthropic(systemPrompt: string, text: string, model: string, 
   const data = await res.json();
   const content = data.content?.[0]?.text;
   if (!content) throw new Error('Empty response from Anthropic');
-  return stripJsonMarkdown(content);
+  return extractJsonObject(content);
 }
 
 interface OpenAICompatOptions {
-  // Certains routeurs (ex : openrouter/auto) gèrent mal response_format json_object
-  // et renvoient une 500 : on peut le désactiver et se reposer sur la consigne
-  // "retourne UNIQUEMENT du JSON" du prompt.
+  // Désactivable si un provider/modèle ne supporte pas response_format json_object ;
+  // on se repose alors sur la consigne "retourne UNIQUEMENT du JSON" du prompt et sur
+  // extractJsonObject() en filet de sécurité.
   jsonFormat?: boolean;
   extraHeaders?: Record<string, string>;
 }
@@ -189,9 +218,7 @@ async function callOpenAICompat(
   const data = await res.json();
   const content = data.choices?.[0]?.message?.content;
   if (!content) throw new Error('Empty response from API');
-  // Défensif : quand response_format n'est pas imposé, certains modèles encadrent
-  // le JSON dans un bloc Markdown ```json … ``` — on le retire.
-  return stripJsonMarkdown(content);
+  return extractJsonObject(content);
 }
 
 Deno.serve(async (req: Request) => {
@@ -252,9 +279,11 @@ Deno.serve(async (req: Request) => {
         // En cas d'échec pendant un test (debug), on interroge /key et /credits pour
         // révéler la vraie cause (clé invalide, crédits épuisés, rate limit) au lieu de
         // renvoyer un « Internal Server Error » opaque. En-têtes recommandés par OpenRouter.
+        // jsonFormat activé : avec openrouter/free (routeur aléatoire de modèles
+        // gratuits), imposer response_format filtre vers des modèles qui le supportent
+        // et évite qu'un modèle de raisonnement réponde en texte libre au lieu de JSON.
         try {
           content = await callOpenAICompat(selectedPrompt, text, model, 'https://openrouter.ai/api/v1', OPENROUTER_KEY, 'OPENROUTER', maxTokens, {
-            jsonFormat: false,
             extraHeaders: {
               'HTTP-Referer': 'https://jfcyberknight.github.io/darkmedia-x_prompt-ai',
               'X-Title': 'DarkMedia Prompt AI',

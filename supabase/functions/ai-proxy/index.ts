@@ -305,32 +305,59 @@ Deno.serve(async (req: Request) => {
       case 'opencode':
         content = await callOpenAICompat(selectedPrompt, text, model, OPENCODE_BASE, OPENCODE_KEY, 'OPENCODE', maxTokens);
         break;
-      case 'openrouter':
-        // OpenRouter masque volontairement le détail des erreurs 500 dans l'appel de
-        // complétion (voir https://openrouter.ai/docs/api/reference/errors-and-debugging).
-        // En cas d'échec pendant un test (debug), on interroge /key et /credits pour
-        // révéler la vraie cause (clé invalide, crédits épuisés, rate limit) au lieu de
-        // renvoyer un « Internal Server Error » opaque. En-têtes recommandés par OpenRouter.
-        // jsonFormat désactivé : le pool de modèles gratuits OpenRouter a un support
-        // inégal de response_format json_object (certains renvoient 400/404). On se
-        // repose sur la consigne « retourne UNIQUEMENT du JSON » du prompt + le filet
-        // extractJsonObject(), ce qui marche avec n'importe quel modèle du catalogue.
-        try {
-          content = await callOpenAICompat(selectedPrompt, text, model, 'https://openrouter.ai/api/v1', OPENROUTER_KEY, 'OPENROUTER', maxTokens, {
-            jsonFormat: false,
-            extraHeaders: {
-              'HTTP-Referer': 'https://jfcyberknight.github.io/darkmedia-x_prompt-ai',
-              'X-Title': 'DarkMedia Prompt AI',
-            },
-          });
-        } catch (orErr) {
+      case 'openrouter': {
+        // Chaîne d'essai (« retry » pour trouver un modèle qui répond) : les modèles
+        // gratuits OpenRouter échouent souvent (429 rate-limit, 404 retrait, réponse vide
+        // des modèles de raisonnement). Quand l'utilisateur choisit un gratuit, on essaie
+        // successivement plusieurs modèles gratuits fiables, puis en dernier recours un
+        // modèle payant très économique (DeepSeek V3, ~0,001 $) qui, lui, répond toujours.
+        // Si l'utilisateur a choisi un modèle payant précis, on respecte son choix (1 essai).
+        // jsonFormat désactivé : support inégal de response_format dans le pool gratuit ;
+        // on s'appuie sur la consigne « retourne UNIQUEMENT du JSON » + extractJsonObject().
+        const orHeaders = {
+          'HTTP-Referer': 'https://jfcyberknight.github.io/darkmedia-x_prompt-ai',
+          'X-Title': 'DarkMedia Prompt AI',
+        };
+        const isFreeSelection = model.endsWith(':free') || model === 'openrouter/free';
+        const FREE_FALLBACKS = [
+          'meta-llama/llama-3.3-70b-instruct:free',
+          'openai/gpt-oss-120b:free',
+          'qwen/qwen3-next-80b-a3b-instruct:free',
+          'nousresearch/hermes-3-llama-3.1-405b:free',
+        ];
+        const PAID_FALLBACK = 'deepseek/deepseek-chat-v3-0324';
+        const candidates = isFreeSelection
+          ? [...new Set([model, ...FREE_FALLBACKS, PAID_FALLBACK])]
+          : [model];
+
+        const errors: string[] = [];
+        let ok = false;
+        for (const candidate of candidates) {
+          try {
+            content = await callOpenAICompat(selectedPrompt, text, candidate, 'https://openrouter.ai/api/v1', OPENROUTER_KEY, 'OPENROUTER', maxTokens, {
+              jsonFormat: false,
+              extraHeaders: orHeaders,
+            });
+            model = candidate; // reflète le modèle qui a réellement répondu (utile en debug)
+            ok = true;
+            break;
+          } catch (e) {
+            errors.push(`${candidate}: ${e instanceof Error ? e.message : String(e)}`);
+          }
+        }
+
+        if (!ok) {
+          const base = candidates.length > 1
+            ? `Aucun modèle OpenRouter n'a répondu (${candidates.length} essayés) — ${errors.join(' | ')}`
+            : errors[0] ?? 'Échec OpenRouter';
           if (debug) {
             const diag = await probeOpenRouter();
-            throw new Error(`${orErr instanceof Error ? orErr.message : String(orErr)} — ${diag}`);
+            throw new Error(`${base} — ${diag}`);
           }
-          throw orErr;
+          throw new Error(base);
         }
         break;
+      }
       default:
         return errResponse(400, `Provider inconnu : ${provider}`);
     }

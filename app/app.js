@@ -528,7 +528,7 @@ function renderSidebar() {
         <div class="sidebar-item ${state.filter.category === cat.id ? 'active' : ''}"
              data-action="filter-cat" data-cat-id="${cat.id}">
           <span class="sidebar-item-left">
-            <span class="cat-dot" style="background:${cat.color}"></span>
+            <span class="cat-dot" style="background:${safeColor(cat.color)}"></span>
             ${escHtml(cat.name)}
           </span>
           <span class="badge">${catCounts[cat.id] || 0}</span>
@@ -611,7 +611,7 @@ function renderCard(p) {
       <div class="card-preview">${escHtml(p.content)}</div>
 
       <div class="card-meta">
-        ${cat ? `<span class="cat-badge" style="background:${cat.color}22;color:${cat.color};border:1px solid ${cat.color}44">${escHtml(cat.name)}</span>` : ''}
+        ${cat ? (c => `<span class="cat-badge" style="background:${c}22;color:${c};border:1px solid ${c}44">${escHtml(cat.name)}</span>`)(safeColor(cat.color)) : ''}
         ${p.model ? `<span class="model-badge">${escHtml(p.model)}</span>` : ''}
         ${(p.tags || []).slice(0, 3).map(t => `<span class="tag" data-action="filter-tag" data-tag="${escAttr(t)}">#${escHtml(t)}</span>`).join('')}
         ${(p.tags || []).length > 3 ? `<span class="tag">+${p.tags.length - 3}</span>` : ''}
@@ -932,7 +932,7 @@ function openDetail(id) {
       </div>
 
       <div class="detail-meta">
-        ${cat ? `<span class="cat-badge" style="background:${cat.color}22;color:${cat.color};border:1px solid ${cat.color}44">${escHtml(cat.name)}</span>` : ''}
+        ${cat ? (c => `<span class="cat-badge" style="background:${c}22;color:${c};border:1px solid ${c}44">${escHtml(cat.name)}</span>`)(safeColor(cat.color)) : ''}
         ${p.model ? `<span class="model-badge">${escHtml(p.model)}</span>` : ''}
         ${(p.tags || []).map(t => `<span class="tag">#${escHtml(t)}</span>`).join('')}
       </div>
@@ -1416,4 +1416,13 @@ function escHtml(str) {
 
 function escAttr(str) {
   return String(str || '').replace(/"/g, '&quot;');
+}
+
+// La couleur de catégorie est injectée telle quelle dans un attribut style inline
+// (background/color/border). Comme la table categories peut être modifiée hors de
+// l'app (RLS non activée), on valide strictement la valeur comme une couleur hex
+// (#rgb, #rrggbb, #rrggbbaa) avant interpolation ; toute autre valeur retombe sur
+// la couleur d'accent par défaut, empêchant une injection CSS/HTML via style.
+function safeColor(c) {
+  return /^#(?:[0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(String(c || '')) ? c : '#6366f1';
 }

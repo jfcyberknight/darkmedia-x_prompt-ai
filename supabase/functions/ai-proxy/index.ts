@@ -95,6 +95,54 @@ function keyStatus(): Record<string, boolean> {
   };
 }
 
+// Garde-fou anti-blocage : un provider qui ne répond jamais laisserait la fonction
+// pendre jusqu'au timeout brut de la plateforme (et consommerait un worker). On borne
+// chaque appel réseau sortant avec un AbortController et on renvoie une erreur claire
+// en cas de dépassement, plutôt qu'un blocage silencieux.
+const FETCH_TIMEOUT_MS = 45000;
+async function fetchWithTimeout(url: string, init: RequestInit = {}, ms = FETCH_TIMEOUT_MS): Promise<Response> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  try {
+    return await fetch(url, { ...init, signal: ctrl.signal });
+  } catch (e) {
+    if (e instanceof DOMException && e.name === 'AbortError') {
+      let host = url;
+      try { host = new URL(url).host; } catch { /* garde l'URL brute */ }
+      throw new Error(`Délai d'attente dépassé (${ms / 1000}s) en contactant ${host}`);
+    }
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Modèles autorisés par provider — miroir du menu déroulant côté client. Sans cette
+// liste, un utilisateur authentifié pourrait demander N'IMPORTE QUEL identifiant de
+// modèle : un modèle premium coûteux, ou une valeur piégée (l'identifiant Gemini est
+// interpolé dans l'URL d'appel → risque d'injection de chemin). On restreint donc le
+// modèle DEMANDÉ à cette liste. Le modèle par défaut (requestedModel vide) et les
+// modèles de repli choisis côté serveur ne sont pas concernés.
+const ALLOWED_MODELS: Record<string, Set<string>> = {
+  gemini:     new Set(['gemini-2.0-flash', 'gemini-2.5-flash', 'gemini-2.5-pro']),
+  anthropic:  new Set(['claude-haiku-4-5', 'claude-sonnet-5', 'claude-opus-4-8']),
+  openai:     new Set(['gpt-4o-mini', 'gpt-4o', 'gpt-4.1']),
+  deepseek:   new Set(['deepseek-chat', 'deepseek-reasoner']),
+  opencode:   new Set(['gpt-4o-mini', 'gpt-4o']),
+  openrouter: new Set([
+    'meta-llama/llama-3.3-70b-instruct:free',
+    'openai/gpt-oss-120b:free',
+    'qwen/qwen3-next-80b-a3b-instruct:free',
+    'deepseek/deepseek-chat-v3-0324',
+    'openai/gpt-4o-mini',
+    'google/gemini-2.5-flash',
+    'anthropic/claude-sonnet-5',
+    'anthropic/claude-opus-4-8',
+    'openrouter/fusion',
+    'openrouter/free', // compat : anciennes configs sauvegardées côté client
+  ]),
+};
+
 function errResponse(status: number, message: string): Response {
   return new Response(JSON.stringify({ error: message }), {
     status,
@@ -129,18 +177,18 @@ function jwtRole(req: Request): string | null {
 async function probeOpenRouter(): Promise<string> {
   if (!OPENROUTER_KEY) return 'clé OpenRouter absente côté serveur';
   try {
-    const keyRes = await fetch('https://openrouter.ai/api/v1/key', {
+    const keyRes = await fetchWithTimeout('https://openrouter.ai/api/v1/key', {
       headers: { 'Authorization': `Bearer ${OPENROUTER_KEY}` },
-    });
+    }, 15000);
     if (keyRes.status === 401) return 'clé OpenRouter invalide ou révoquée';
     if (!keyRes.ok) return `OpenRouter /key a répondu ${keyRes.status}`;
     const keyData = (await keyRes.json())?.data ?? {};
     console.log('[ai-proxy] OpenRouter /key', JSON.stringify(keyData)); // owner-only (logs)
 
     let creditsMsg = '';
-    const credRes = await fetch('https://openrouter.ai/api/v1/credits', {
+    const credRes = await fetchWithTimeout('https://openrouter.ai/api/v1/credits', {
       headers: { 'Authorization': `Bearer ${OPENROUTER_KEY}` },
-    });
+    }, 15000);
     if (credRes.ok) {
       const c = (await credRes.json())?.data ?? {};
       console.log('[ai-proxy] OpenRouter /credits', JSON.stringify(c)); // owner-only (logs)
@@ -160,7 +208,7 @@ async function probeOpenRouter(): Promise<string> {
 async function callGemini(systemPrompt: string, text: string, model: string, maxTokens: number): Promise<string> {
   if (!GEMINI_KEY) throw new Error('GEMINI_API_KEY not configured');
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`;
-  const res = await fetch(url, {
+  const res = await fetchWithTimeout(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -178,7 +226,7 @@ async function callGemini(systemPrompt: string, text: string, model: string, max
 
 async function callAnthropic(systemPrompt: string, text: string, model: string, maxTokens: number): Promise<string> {
   if (!ANTHROPIC_KEY) throw new Error('ANTHROPIC_API_KEY not configured');
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  const res = await fetchWithTimeout('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -231,7 +279,7 @@ async function callOpenAICompat(
   };
   if (jsonFormat) requestBody.response_format = { type: 'json_object' };
 
-  const res = await fetch(`${baseUrl}/chat/completions`, {
+  const res = await fetchWithTimeout(`${baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -271,6 +319,13 @@ Deno.serve(async (req: Request) => {
     debug = payload.debug === true;
 
     model = requestedModel || DEFAULT_MODELS[provider] || DEFAULT_MODELS.gemini;
+    // Allowlist : si un modèle est explicitement demandé, il doit figurer dans la liste
+    // autorisée du provider (cf. ALLOWED_MODELS). Bloque les identifiants arbitraires
+    // (modèles premium coûteux, valeurs piégées interpolées dans l'URL Gemini). Un
+    // requestedModel vide → modèle par défaut serveur, non soumis à ce contrôle.
+    if (requestedModel && !(ALLOWED_MODELS[provider]?.has(requestedModel))) {
+      return errResponse(400, `Modèle non autorisé pour ${provider} : ${requestedModel}`);
+    }
     // openrouter/free est un routeur aléatoire : il tombe parfois sur un modèle de
     // raisonnement qui épuise son budget de tokens sans produire de contenu (réponse
     // vide). On le remplace par un modèle gratuit concret et fiable (chat/instruct pur).
@@ -294,9 +349,9 @@ Deno.serve(async (req: Request) => {
     // (id suffixé « :free » ou tarif prompt+completion nul). La liste change souvent —
     // c'est la source de vérité en direct plutôt qu'une liste codée en dur.
     if (action === 'freeModels') {
-      const r = await fetch('https://openrouter.ai/api/v1/models', {
+      const r = await fetchWithTimeout('https://openrouter.ai/api/v1/models', {
         headers: OPENROUTER_KEY ? { 'Authorization': `Bearer ${OPENROUTER_KEY}` } : {},
-      });
+      }, 15000);
       if (!r.ok) return errResponse(502, `OpenRouter /models a répondu ${r.status}`);
       const all = (await r.json()).data ?? [];
       const free = all

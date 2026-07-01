@@ -169,9 +169,12 @@ Deno.serve(async (req: Request) => {
   }
 
   let debug = false;
+  let provider = 'gemini';
+  let action = 'extract';
   try {
     const payload = await req.json();
-    const { text, action = 'extract', instruction = '', provider = 'gemini', model: requestedModel = '', maxTokens: requestedMaxTokens } = payload;
+    ({ action = 'extract', provider = 'gemini' } = payload);
+    const { text, instruction = '', model: requestedModel = '', maxTokens: requestedMaxTokens } = payload;
     debug = payload.debug === true;
 
     const model = requestedModel || DEFAULT_MODELS[provider] || DEFAULT_MODELS.gemini;
@@ -229,6 +232,9 @@ Deno.serve(async (req: Request) => {
     });
 
   } catch (err) {
+    // Journalisé côté serveur (visible dans les logs Supabase) pour diagnostiquer les
+    // 500 sans exposer le détail de l'erreur brute au client par défaut.
+    console.error(`[ai-proxy] provider=${provider} action=${action} error=`, err);
     const body: Record<string, unknown> = { error: err.message };
     // N'expose la topologie des clés (booléens de présence) que sur demande explicite (bouton de test).
     if (debug) body.configured = keyStatus();

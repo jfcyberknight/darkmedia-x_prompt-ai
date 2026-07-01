@@ -240,6 +240,15 @@ Deno.serve(async (req: Request) => {
     debug = payload.debug === true;
 
     model = requestedModel || DEFAULT_MODELS[provider] || DEFAULT_MODELS.gemini;
+    // openrouter/free est un routeur aléatoire instable : il tombe parfois sur un
+    // modèle de raisonnement qui épuise tout son budget de tokens en réflexion interne
+    // sans produire de contenu visible (« Empty response from API »). On le remappe
+    // systématiquement vers un modèle gratuit concret et fiable — même quand le client
+    // le demande explicitement (préférence enregistrée), pour éviter cet écueil sans
+    // dépendre d'un redéploiement du front.
+    if (provider === 'openrouter' && model === 'openrouter/free') {
+      model = 'deepseek/deepseek-chat-v3-0324:free';
+    }
     // Plafond de génération. Par défaut 8000 ; un test de connexion peut demander
     // une petite valeur pour une réponse quasi instantanée. Borné entre 16 et 8000.
     const maxTokens = Math.min(Math.max(Number(requestedMaxTokens) || 8000, 16), 8000);

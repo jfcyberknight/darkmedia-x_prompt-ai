@@ -1343,7 +1343,9 @@ async function testAIConnection() {
 
   try {
     const { data, error } = await db.functions.invoke('ai-proxy', {
-      body: { text: 'Test de connexion.', action: 'extract', provider, model: model || undefined, debug: true },
+      // maxTokens réduit : on veut juste valider l'authentification/joignabilité du
+      // provider, pas générer une réponse complète — le test reste quasi instantané.
+      body: { text: 'Test de connexion. Réponds avec un court JSON.', action: 'extract', provider, model: model || undefined, maxTokens: 64, debug: true },
     });
 
     if (error) throw new Error(await extractEdgeError(error));

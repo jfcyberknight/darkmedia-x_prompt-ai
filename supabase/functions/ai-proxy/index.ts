@@ -69,7 +69,7 @@ function errResponse(status: number, message: string): Response {
   });
 }
 
-async function callGemini(systemPrompt: string, text: string, model: string): Promise<string> {
+async function callGemini(systemPrompt: string, text: string, model: string, maxTokens: number): Promise<string> {
   if (!GEMINI_KEY) throw new Error('GEMINI_API_KEY not configured');
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`;
   const res = await fetch(url, {
@@ -78,7 +78,7 @@ async function callGemini(systemPrompt: string, text: string, model: string): Pr
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: systemPrompt }] },
       contents: [{ role: 'user', parts: [{ text }] }],
-      generationConfig: { responseMimeType: 'application/json', temperature: 0.3, maxOutputTokens: 8000 },
+      generationConfig: { responseMimeType: 'application/json', temperature: 0.3, maxOutputTokens: maxTokens },
     }),
   });
   if (!res.ok) throw new Error(`Gemini API error ${res.status}: ${await res.text()}`);
@@ -88,7 +88,7 @@ async function callGemini(systemPrompt: string, text: string, model: string): Pr
   return content;
 }
 
-async function callAnthropic(systemPrompt: string, text: string, model: string): Promise<string> {
+async function callAnthropic(systemPrompt: string, text: string, model: string, maxTokens: number): Promise<string> {
   if (!ANTHROPIC_KEY) throw new Error('ANTHROPIC_API_KEY not configured');
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -99,7 +99,7 @@ async function callAnthropic(systemPrompt: string, text: string, model: string):
     },
     body: JSON.stringify({
       model,
-      max_tokens: 8000,
+      max_tokens: maxTokens,
       system: systemPrompt,
       messages: [{ role: 'user', content: text }],
     }),
@@ -111,7 +111,7 @@ async function callAnthropic(systemPrompt: string, text: string, model: string):
   return stripJsonMarkdown(content);
 }
 
-async function callOpenAICompat(systemPrompt: string, text: string, model: string, baseUrl: string, apiKey: string, providerName: string): Promise<string> {
+async function callOpenAICompat(systemPrompt: string, text: string, model: string, baseUrl: string, apiKey: string, providerName: string, maxTokens: number): Promise<string> {
   if (!apiKey) throw new Error(`${providerName} API key not configured`);
   const res = await fetch(`${baseUrl}/chat/completions`, {
     method: 'POST',
@@ -127,7 +127,7 @@ async function callOpenAICompat(systemPrompt: string, text: string, model: strin
       ],
       response_format: { type: 'json_object' },
       temperature: 0.3,
-      max_tokens: 8000,
+      max_tokens: maxTokens,
     }),
   });
   if (!res.ok) throw new Error(`API error ${res.status}: ${await res.text()}`);
@@ -145,10 +145,13 @@ Deno.serve(async (req: Request) => {
   let debug = false;
   try {
     const payload = await req.json();
-    const { text, action = 'extract', instruction = '', provider = 'gemini', model: requestedModel = '' } = payload;
+    const { text, action = 'extract', instruction = '', provider = 'gemini', model: requestedModel = '', maxTokens: requestedMaxTokens } = payload;
     debug = payload.debug === true;
 
     const model = requestedModel || DEFAULT_MODELS[provider] || DEFAULT_MODELS.gemini;
+    // Plafond de génération. Par défaut 8000 ; un test de connexion peut demander
+    // une petite valeur pour une réponse quasi instantanée. Borné entre 16 et 8000.
+    const maxTokens = Math.min(Math.max(Number(requestedMaxTokens) || 8000, 16), 8000);
 
     // Diagnostic léger : vérifie la présence des clés sans appeler de provider.
     if (action === 'ping') {
@@ -168,22 +171,22 @@ Deno.serve(async (req: Request) => {
 
     switch (provider) {
       case 'gemini':
-        content = await callGemini(selectedPrompt, text, model);
+        content = await callGemini(selectedPrompt, text, model, maxTokens);
         break;
       case 'anthropic':
-        content = await callAnthropic(selectedPrompt, text, model);
+        content = await callAnthropic(selectedPrompt, text, model, maxTokens);
         break;
       case 'openai':
-        content = await callOpenAICompat(selectedPrompt, text, model, 'https://api.openai.com/v1', OPENAI_KEY, 'OPENAI');
+        content = await callOpenAICompat(selectedPrompt, text, model, 'https://api.openai.com/v1', OPENAI_KEY, 'OPENAI', maxTokens);
         break;
       case 'deepseek':
-        content = await callOpenAICompat(selectedPrompt, text, model, 'https://api.deepseek.com/v1', DEEPSEEK_KEY, 'DEEPSEEK');
+        content = await callOpenAICompat(selectedPrompt, text, model, 'https://api.deepseek.com/v1', DEEPSEEK_KEY, 'DEEPSEEK', maxTokens);
         break;
       case 'opencode':
-        content = await callOpenAICompat(selectedPrompt, text, model, OPENCODE_BASE, OPENCODE_KEY, 'OPENCODE');
+        content = await callOpenAICompat(selectedPrompt, text, model, OPENCODE_BASE, OPENCODE_KEY, 'OPENCODE', maxTokens);
         break;
       case 'openrouter':
-        content = await callOpenAICompat(selectedPrompt, text, model, 'https://openrouter.ai/api/v1', OPENROUTER_KEY, 'OPENROUTER');
+        content = await callOpenAICompat(selectedPrompt, text, model, 'https://openrouter.ai/api/v1', OPENROUTER_KEY, 'OPENROUTER', maxTokens);
         break;
       default:
         return errResponse(400, `Provider inconnu : ${provider}`);

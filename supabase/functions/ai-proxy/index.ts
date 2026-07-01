@@ -14,9 +14,9 @@ const DEFAULT_MODELS: Record<string, string> = {
   openai:     'gpt-4o-mini',
   deepseek:   'deepseek-chat',
   opencode:   'gpt-4o-mini',
-  // Modèle concret par défaut (le routeur "openrouter/auto" est instable et
-  // renvoie parfois des 500). Surchargé par le secret OPENROUTER_MODEL s'il est défini.
-  openrouter: Deno.env.get('OPENROUTER_MODEL') || 'openai/gpt-4o-mini',
+  // Fusion : panel multi-modèles + synthèse (voir https://openrouter.ai/openrouter/fusion).
+  // Surchargé par le secret OPENROUTER_MODEL s'il est défini.
+  openrouter: Deno.env.get('OPENROUTER_MODEL') || 'openrouter/fusion',
 };
 
 const corsHeaders = {

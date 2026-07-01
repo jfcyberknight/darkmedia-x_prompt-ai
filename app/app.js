@@ -239,7 +239,7 @@ const AI_DEFAULT_MODELS = {
   openai:    'gpt-4o-mini',
   deepseek:  'deepseek-chat',
   opencode:  'gpt-4o-mini',
-  openrouter: 'openai/gpt-4o-mini',
+  openrouter: 'openrouter/fusion',
 };
 
 const AI_MODELS_BY_PROVIDER = {
@@ -267,6 +267,7 @@ const AI_MODELS_BY_PROVIDER = {
     { value: 'gpt-4o',      label: 'GPT-4o (équilibré)' },
   ],
   openrouter: [
+    { value: 'openrouter/fusion',                label: 'Fusion (panel multi-modèles + synthèse, le plus précis)' },
     { value: 'openrouter/auto',                  label: 'Auto (meilleur modèle disponible)' },
     { value: 'anthropic/claude-sonnet-5',        label: 'Claude Sonnet 5 (équilibré)' },
     { value: 'anthropic/claude-opus-4-8',        label: 'Claude Opus 4.8 (le plus capable)' },
@@ -1060,6 +1061,7 @@ async function extractEdgeError(error) {
   try {
     const body = await error?.context?.json?.();
     if (body?.error) msg = body.error;
+    if (body?.model) msg += ` — modèle utilisé : ${body.model}`;
     if (body?.configured) {
       const present = Object.entries(body.configured).filter(([, v]) => v).map(([k]) => k);
       msg += ` — clés configurées côté serveur : ${present.length ? present.join(', ') : 'aucune'}`;

@@ -36,21 +36,55 @@ if ('serviceWorker' in navigator) {
   });
 }
 
+// L'app tourne-t-elle déjà en mode installé (PWA autonome) ?
+function isAppInstalled() {
+  return window.matchMedia('(display-mode: standalone)').matches
+    || window.navigator.standalone === true;
+}
+
+// Masque les points d'entrée d'installation (topbar + écran de connexion)
+// quand l'app est déjà installée — inutile d'inviter à réinstaller.
+function refreshInstallUI() {
+  const installed = isAppInstalled();
+  const topBtn = $('pwa-install-btn');
+  const landingWrap = $('landing-install-wrap');
+  if (topBtn) topBtn.style.display = installed ? 'none' : '';
+  if (landingWrap) landingWrap.style.display = installed ? 'none' : '';
+}
+
+// Déclenche l'installation : invite native si disponible (Chrome/Edge/Android),
+// sinon ouvre la modale d'instructions (iOS/Safari, navigateurs sans prompt).
+async function triggerInstall() {
+  if (!deferredPrompt) {
+    openPwaInstallModal();
+    return;
+  }
+  try {
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    console.log(`User response to the install prompt: ${outcome}`);
+  } catch (err) {
+    console.error('Installation failed:', err);
+  } finally {
+    deferredPrompt = null;
+    document.querySelectorAll('.installable-pulse')
+      .forEach(el => el.classList.remove('installable-pulse'));
+  }
+}
+
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   deferredPrompt = e;
-  const installBtn = $('pwa-install-btn');
-  if (installBtn) {
-    installBtn.classList.add('installable-pulse');
-  }
+  // Signale visuellement que l'installation directe est possible.
+  $('pwa-install-btn')?.classList.add('installable-pulse');
+  $('landing-install-btn')?.classList.add('installable-pulse');
 });
 
-window.addEventListener('appinstalled', (e) => {
+window.addEventListener('appinstalled', () => {
   deferredPrompt = null;
-  const installBtn = $('pwa-install-btn');
-  if (installBtn) {
-    installBtn.classList.remove('installable-pulse');
-  }
+  document.querySelectorAll('.installable-pulse')
+    .forEach(el => el.classList.remove('installable-pulse'));
+  refreshInstallUI();
   showToast('Application installée avec succès !', 'success');
 });
 
@@ -66,26 +100,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     versionEl.title = `DarkMedia · Prompt AI — version ${APP_VERSION}`;
   }
 
-  // Bind PWA Install button
-  const installBtn = $('pwa-install-btn');
-  if (installBtn) {
-    installBtn.addEventListener('click', async () => {
-      if (!deferredPrompt) {
-        openPwaInstallModal();
-        return;
-      }
-      try {
-        deferredPrompt.prompt();
-        const { outcome } = await deferredPrompt.userChoice;
-        console.log(`User response to the install prompt: ${outcome}`);
-      } catch (err) {
-        console.error('Installation failed:', err);
-      } finally {
-        deferredPrompt = null;
-        installBtn.classList.remove('installable-pulse');
-      }
-    });
-  }
+  // Boutons d'installation PWA : celui du topbar (une fois connecté) et celui de
+  // l'écran de connexion (installation depuis le web, sans compte).
+  $('pwa-install-btn')?.addEventListener('click', triggerInstall);
+  $('landing-install-btn')?.addEventListener('click', triggerInstall);
+  refreshInstallUI();
 
   const { data: { session } } = await db.auth.getSession();
   if (session) {

@@ -18,6 +18,9 @@ let state = {
   tagInput:     [],
 };
 
+// ---- App version (source de vérité affichée dans l'UI) ----
+const APP_VERSION = '1.0.0';
+
 // ---- DOM refs ----
 const $ = id => document.getElementById(id);
 const qs = (sel, ctx = document) => ctx.querySelector(sel);
@@ -55,6 +58,13 @@ window.addEventListener('appinstalled', (e) => {
 document.addEventListener('DOMContentLoaded', async () => {
   bindLoginForm();
   bindSettingsForm();
+
+  // Affiche la version de l'app dans la barre supérieure
+  const versionEl = $('app-version');
+  if (versionEl) {
+    versionEl.textContent = `v${APP_VERSION}`;
+    versionEl.title = `DarkMedia · Prompt AI — version ${APP_VERSION}`;
+  }
 
   // Bind PWA Install button
   const installBtn = $('pwa-install-btn');

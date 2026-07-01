@@ -466,8 +466,10 @@
             </select>
           </div>
           <div>
-            <label for="settings-ai-model" style="font-size:0.82rem;color:var(--text-secondary);display:block;margin-bottom:0.3rem;">Modèle <span style="font-weight:400;opacity:0.7">(optionnel)</span></label>
-            <input type="text" id="settings-ai-model" placeholder="Laisse vide pour le modèle par défaut" style="width:100%;padding:0.5rem 0.7rem;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-size:0.88rem;box-sizing:border-box;">
+            <label for="settings-ai-model" style="font-size:0.82rem;color:var(--text-secondary);display:block;margin-bottom:0.3rem;">Modèle</label>
+            <select id="settings-ai-model" style="width:100%;padding:0.5rem 0.7rem;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-size:0.88rem;cursor:pointer;">
+              <!-- Options injectées par JS selon le provider sélectionné -->
+            </select>
             <p id="settings-ai-model-hint" style="font-size:0.76rem;color:var(--text-secondary);margin:0.3rem 0 0 0;min-height:1rem;"></p>
           </div>
         </div>

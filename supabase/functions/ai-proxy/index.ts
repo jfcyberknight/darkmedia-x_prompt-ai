@@ -9,7 +9,7 @@ const OPENCODE_BASE = Deno.env.get('OPENCODE_BASE_URL') ?? 'https://api.openai.c
 
 const DEFAULT_MODELS: Record<string, string> = {
   gemini:    'gemini-2.0-flash',
-  anthropic: 'claude-haiku-4-5-20251001',
+  anthropic: 'claude-haiku-4-5',
   openai:    'gpt-4o-mini',
   deepseek:  'deepseek-chat',
   opencode:  'gpt-4o-mini',

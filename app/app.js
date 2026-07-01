@@ -225,10 +225,36 @@ function bindLoginForm() {
 
 const AI_DEFAULT_MODELS = {
   gemini:    'gemini-2.0-flash',
-  anthropic: 'claude-haiku-4-5-20251001',
+  anthropic: 'claude-haiku-4-5',
   openai:    'gpt-4o-mini',
   deepseek:  'deepseek-chat',
   opencode:  'gpt-4o-mini',
+};
+
+const AI_MODELS_BY_PROVIDER = {
+  gemini: [
+    { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (rapide)' },
+    { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
+    { value: 'gemini-2.5-pro',   label: 'Gemini 2.5 Pro (avancé)' },
+  ],
+  anthropic: [
+    { value: 'claude-haiku-4-5', label: 'Claude Haiku 4.5 (rapide, économique)' },
+    { value: 'claude-sonnet-5',  label: 'Claude Sonnet 5 (équilibré)' },
+    { value: 'claude-opus-4-8',  label: 'Claude Opus 4.8 (le plus capable)' },
+  ],
+  openai: [
+    { value: 'gpt-4o-mini', label: 'GPT-4o mini (rapide, économique)' },
+    { value: 'gpt-4o',      label: 'GPT-4o (équilibré)' },
+    { value: 'gpt-4.1',     label: 'GPT-4.1 (avancé)' },
+  ],
+  deepseek: [
+    { value: 'deepseek-chat',     label: 'DeepSeek Chat' },
+    { value: 'deepseek-reasoner', label: 'DeepSeek Reasoner (raisonnement)' },
+  ],
+  opencode: [
+    { value: 'gpt-4o-mini', label: 'GPT-4o mini (rapide, économique)' },
+    { value: 'gpt-4o',      label: 'GPT-4o (équilibré)' },
+  ],
 };
 
 function getAIConfig() {
@@ -243,11 +269,23 @@ function updateModelHint(provider) {
   if (hint) hint.textContent = `Défaut : ${AI_DEFAULT_MODELS[provider] || '—'}`;
 }
 
+function populateModelOptions(provider, selectedModel) {
+  const select = $('settings-ai-model');
+  if (!select) return;
+  const models = AI_MODELS_BY_PROVIDER[provider] || [];
+  select.innerHTML = [
+    `<option value="">Par défaut (${AI_DEFAULT_MODELS[provider] || '—'})</option>`,
+    ...models.map(m => `<option value="${m.value}">${escHtml(m.label)}</option>`),
+  ].join('');
+  select.value = selectedModel && models.some(m => m.value === selectedModel) ? selectedModel : '';
+}
+
 function bindSettingsForm() {
   $('settings-overlay').addEventListener('click', e => {
     if (e.target === $('settings-overlay')) closeSettings();
   });
   $('settings-ai-provider').addEventListener('change', e => {
+    populateModelOptions(e.target.value, '');
     updateModelHint(e.target.value);
   });
 }
@@ -255,7 +293,7 @@ function bindSettingsForm() {
 function openSettings() {
   const cfg = getAIConfig();
   $('settings-ai-provider').value = cfg.provider;
-  $('settings-ai-model').value    = cfg.model;
+  populateModelOptions(cfg.provider, cfg.model);
   updateModelHint(cfg.provider);
   $('settings-overlay').classList.add('open');
 }

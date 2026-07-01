@@ -71,6 +71,37 @@ function errResponse(status: number, message: string): Response {
   });
 }
 
+// Diagnostic OpenRouter : interroge les endpoints /key et /credits pour connaître
+// l'état réel du compte (clé valide ? crédits restants ? rate limit ?). OpenRouter
+// masque le détail des erreurs 500 dans l'appel de complétion — ces endpoints, eux,
+// répondent en clair. Utilisé uniquement en mode debug (bouton de test) pour
+// transformer un « Internal Server Error » opaque en cause exploitable.
+async function probeOpenRouter(): Promise<string> {
+  if (!OPENROUTER_KEY) return 'clé OpenRouter absente côté serveur';
+  const parts: string[] = [];
+  try {
+    const keyRes = await fetch('https://openrouter.ai/api/v1/key', {
+      headers: { 'Authorization': `Bearer ${OPENROUTER_KEY}` },
+    });
+    const keyBody = await keyRes.text();
+    if (keyRes.status === 401) {
+      return `clé OpenRouter invalide ou révoquée (401 sur /key : ${keyBody})`;
+    }
+    parts.push(`/key ${keyRes.status}: ${keyBody}`);
+  } catch (e) {
+    parts.push(`/key injoignable: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  try {
+    const credRes = await fetch('https://openrouter.ai/api/v1/credits', {
+      headers: { 'Authorization': `Bearer ${OPENROUTER_KEY}` },
+    });
+    parts.push(`/credits ${credRes.status}: ${await credRes.text()}`);
+  } catch (e) {
+    parts.push(`/credits injoignable: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  return `diagnostic OpenRouter — ${parts.join(' | ')}`;
+}
+
 async function callGemini(systemPrompt: string, text: string, model: string, maxTokens: number): Promise<string> {
   if (!GEMINI_KEY) throw new Error('GEMINI_API_KEY not configured');
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_KEY}`;
@@ -216,19 +247,26 @@ Deno.serve(async (req: Request) => {
         content = await callOpenAICompat(selectedPrompt, text, model, OPENCODE_BASE, OPENCODE_KEY, 'OPENCODE', maxTokens);
         break;
       case 'openrouter':
-        // Le 500 générique observé persiste à l'identique avec/sans ces en-têtes et
-        // pour tous les modèles testés (auto, gpt-4o-mini, fusion) : ce n'est donc pas
-        // la cause. OpenRouter masque volontairement le détail des erreurs 500 (voir
-        // https://openrouter.ai/docs/api/reference/errors-and-debugging), donc le
-        // diagnostic doit se faire côté dashboard OpenRouter (clé/crédits/activité),
-        // pas en ajustant la requête. En-têtes conservés car recommandés par OpenRouter.
-        content = await callOpenAICompat(selectedPrompt, text, model, 'https://openrouter.ai/api/v1', OPENROUTER_KEY, 'OPENROUTER', maxTokens, {
-          jsonFormat: false,
-          extraHeaders: {
-            'HTTP-Referer': 'https://jfcyberknight.github.io/darkmedia-x_prompt-ai',
-            'X-Title': 'DarkMedia Prompt AI',
-          },
-        });
+        // OpenRouter masque volontairement le détail des erreurs 500 dans l'appel de
+        // complétion (voir https://openrouter.ai/docs/api/reference/errors-and-debugging).
+        // En cas d'échec pendant un test (debug), on interroge /key et /credits pour
+        // révéler la vraie cause (clé invalide, crédits épuisés, rate limit) au lieu de
+        // renvoyer un « Internal Server Error » opaque. En-têtes recommandés par OpenRouter.
+        try {
+          content = await callOpenAICompat(selectedPrompt, text, model, 'https://openrouter.ai/api/v1', OPENROUTER_KEY, 'OPENROUTER', maxTokens, {
+            jsonFormat: false,
+            extraHeaders: {
+              'HTTP-Referer': 'https://jfcyberknight.github.io/darkmedia-x_prompt-ai',
+              'X-Title': 'DarkMedia Prompt AI',
+            },
+          });
+        } catch (orErr) {
+          if (debug) {
+            const diag = await probeOpenRouter();
+            throw new Error(`${orErr instanceof Error ? orErr.message : String(orErr)} — ${diag}`);
+          }
+          throw orErr;
+        }
         break;
       default:
         return errResponse(400, `Provider inconnu : ${provider}`);

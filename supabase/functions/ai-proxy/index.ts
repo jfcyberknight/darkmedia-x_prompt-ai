@@ -14,12 +14,11 @@ const DEFAULT_MODELS: Record<string, string> = {
   openai:     'gpt-4o-mini',
   deepseek:   'deepseek-chat',
   opencode:   'gpt-4o-mini',
-  // Modèle gratuit concret (zéro crédit) et fiable : contrairement à openrouter/free
-  // (routeur qui pioche un modèle gratuit au hasard, parfois un modèle de
-  // raisonnement qui consomme son budget de tokens en réflexion avant de répondre),
-  // celui-ci est un modèle de chat classique qui répond directement.
-  // Surchargé par OPENROUTER_MODEL s'il est défini.
-  openrouter: Deno.env.get('OPENROUTER_MODEL') || 'deepseek/deepseek-chat-v3-0324:free',
+  // Llama 3.3 70B Instruct (gratuit, zéro crédit) : modèle de chat/instruct pur — pas
+  // de raisonnement caché qui viderait le budget de tokens — donc fiable pour renvoyer
+  // du JSON directement. Vérifié disponible via l'action « freeModels ». Surchargé par
+  // OPENROUTER_MODEL (ex: 'deepseek/deepseek-chat-v3-0324' pour un payant très économique).
+  openrouter: Deno.env.get('OPENROUTER_MODEL') || 'meta-llama/llama-3.3-70b-instruct:free',
 };
 
 const corsHeaders = {
@@ -240,14 +239,13 @@ Deno.serve(async (req: Request) => {
     debug = payload.debug === true;
 
     model = requestedModel || DEFAULT_MODELS[provider] || DEFAULT_MODELS.gemini;
-    // openrouter/free est un routeur aléatoire instable : il tombe parfois sur un
-    // modèle de raisonnement qui épuise tout son budget de tokens en réflexion interne
-    // sans produire de contenu visible (« Empty response from API »). On le remappe
-    // systématiquement vers un modèle gratuit concret et fiable — même quand le client
-    // le demande explicitement (préférence enregistrée), pour éviter cet écueil sans
-    // dépendre d'un redéploiement du front.
+    // openrouter/free est un routeur aléatoire : il tombe parfois sur un modèle de
+    // raisonnement qui épuise son budget de tokens sans produire de contenu (réponse
+    // vide). On le remplace par un modèle gratuit concret et fiable (chat/instruct pur).
+    // NB : on ne touche PAS aux autres modèles :free choisis explicitement — l'utilisateur
+    // reste libre de sélectionner un modèle gratuit précis dans le menu.
     if (provider === 'openrouter' && model === 'openrouter/free') {
-      model = 'deepseek/deepseek-chat-v3-0324:free';
+      model = 'meta-llama/llama-3.3-70b-instruct:free';
     }
     // Plafond de génération. Par défaut 8000 ; un test de connexion peut demander
     // une petite valeur pour une réponse quasi instantanée. Borné entre 16 et 8000.
@@ -256,6 +254,28 @@ Deno.serve(async (req: Request) => {
     // Diagnostic léger : vérifie la présence des clés sans appeler de provider.
     if (action === 'ping') {
       return new Response(JSON.stringify({ ok: true, provider, model, configured: keyStatus() }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Diagnostic : liste les modèles gratuits actuellement disponibles sur OpenRouter
+    // (id suffixé « :free » ou tarif prompt+completion nul). La liste change souvent —
+    // c'est la source de vérité en direct plutôt qu'une liste codée en dur.
+    if (action === 'freeModels') {
+      const r = await fetch('https://openrouter.ai/api/v1/models', {
+        headers: OPENROUTER_KEY ? { 'Authorization': `Bearer ${OPENROUTER_KEY}` } : {},
+      });
+      if (!r.ok) return errResponse(502, `OpenRouter /models a répondu ${r.status}`);
+      const all = (await r.json()).data ?? [];
+      const free = all
+        .filter((m: Record<string, unknown>) => {
+          const id = typeof m.id === 'string' ? m.id : '';
+          const p = (m.pricing ?? {}) as Record<string, unknown>;
+          const zero = Number(p.prompt) === 0 && Number(p.completion) === 0;
+          return id.endsWith(':free') || zero;
+        })
+        .map((m: Record<string, unknown>) => ({ id: m.id, name: m.name, context: m.context_length }));
+      return new Response(JSON.stringify({ count: free.length, free }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
@@ -291,11 +311,13 @@ Deno.serve(async (req: Request) => {
         // En cas d'échec pendant un test (debug), on interroge /key et /credits pour
         // révéler la vraie cause (clé invalide, crédits épuisés, rate limit) au lieu de
         // renvoyer un « Internal Server Error » opaque. En-têtes recommandés par OpenRouter.
-        // jsonFormat activé : avec openrouter/free (routeur aléatoire de modèles
-        // gratuits), imposer response_format filtre vers des modèles qui le supportent
-        // et évite qu'un modèle de raisonnement réponde en texte libre au lieu de JSON.
+        // jsonFormat désactivé : le pool de modèles gratuits OpenRouter a un support
+        // inégal de response_format json_object (certains renvoient 400/404). On se
+        // repose sur la consigne « retourne UNIQUEMENT du JSON » du prompt + le filet
+        // extractJsonObject(), ce qui marche avec n'importe quel modèle du catalogue.
         try {
           content = await callOpenAICompat(selectedPrompt, text, model, 'https://openrouter.ai/api/v1', OPENROUTER_KEY, 'OPENROUTER', maxTokens, {
+            jsonFormat: false,
             extraHeaders: {
               'HTTP-Referer': 'https://jfcyberknight.github.io/darkmedia-x_prompt-ai',
               'X-Title': 'DarkMedia Prompt AI',

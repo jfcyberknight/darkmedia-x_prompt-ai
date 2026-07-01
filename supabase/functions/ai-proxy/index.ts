@@ -14,9 +14,12 @@ const DEFAULT_MODELS: Record<string, string> = {
   openai:     'gpt-4o-mini',
   deepseek:   'deepseek-chat',
   opencode:   'gpt-4o-mini',
-  // Routeur de modèles gratuits d'OpenRouter (zéro crédit, voir
-  // https://openrouter.ai/openrouter/free). Surchargé par OPENROUTER_MODEL s'il est défini.
-  openrouter: Deno.env.get('OPENROUTER_MODEL') || 'openrouter/free',
+  // Modèle gratuit concret (zéro crédit) et fiable : contrairement à openrouter/free
+  // (routeur qui pioche un modèle gratuit au hasard, parfois un modèle de
+  // raisonnement qui consomme son budget de tokens en réflexion avant de répondre),
+  // celui-ci est un modèle de chat classique qui répond directement.
+  // Surchargé par OPENROUTER_MODEL s'il est défini.
+  openrouter: Deno.env.get('OPENROUTER_MODEL') || 'deepseek/deepseek-chat-v3-0324:free',
 };
 
 const corsHeaders = {

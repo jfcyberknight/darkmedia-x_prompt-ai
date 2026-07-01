@@ -239,7 +239,7 @@ const AI_DEFAULT_MODELS = {
   openai:    'gpt-4o-mini',
   deepseek:  'deepseek-chat',
   opencode:  'gpt-4o-mini',
-  openrouter: 'openrouter/free',
+  openrouter: 'deepseek/deepseek-chat-v3-0324:free',
 };
 
 const AI_MODELS_BY_PROVIDER = {
@@ -267,15 +267,15 @@ const AI_MODELS_BY_PROVIDER = {
     { value: 'gpt-4o',      label: 'GPT-4o (équilibré)' },
   ],
   openrouter: [
-    { value: 'openrouter/free',                  label: 'Gratuit (routeur de modèles gratuits, zéro crédit)' },
+    { value: 'deepseek/deepseek-chat-v3-0324:free',    label: 'DeepSeek V3 (gratuit, recommandé)' },
+    { value: 'meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B (gratuit)' },
+    { value: 'openrouter/free',                  label: 'Gratuit (routeur aléatoire, moins fiable)' },
     { value: 'openrouter/fusion',                label: 'Fusion (panel multi-modèles + synthèse, le plus précis)' },
     { value: 'openrouter/auto',                  label: 'Auto (meilleur modèle disponible)' },
     { value: 'anthropic/claude-sonnet-5',        label: 'Claude Sonnet 5 (équilibré)' },
     { value: 'anthropic/claude-opus-4-8',        label: 'Claude Opus 4.8 (le plus capable)' },
     { value: 'openai/gpt-4o-mini',               label: 'GPT-4o mini (rapide, économique)' },
     { value: 'google/gemini-2.5-flash',          label: 'Gemini 2.5 Flash' },
-    { value: 'meta-llama/llama-3.3-70b-instruct:free', label: 'Llama 3.3 70B (gratuit)' },
-    { value: 'deepseek/deepseek-chat-v3-0324:free',    label: 'DeepSeek V3 (gratuit)' },
   ],
 };
 
@@ -1349,7 +1349,9 @@ async function testAIConnection() {
     const { data, error } = await db.functions.invoke('ai-proxy', {
       // maxTokens réduit : on veut juste valider l'authentification/joignabilité du
       // provider, pas générer une réponse complète — le test reste quasi instantané.
-      body: { text: 'Test de connexion. Réponds avec un court JSON.', action: 'extract', provider, model: model || undefined, maxTokens: 64, debug: true },
+      // 300 (et non 64) pour laisser de la marge aux modèles de raisonnement (surtout
+      // gratuits) qui consomment des tokens de réflexion avant d'émettre le JSON final.
+      body: { text: 'Test de connexion. Réponds avec un court JSON.', action: 'extract', provider, model: model || undefined, maxTokens: 300, debug: true },
     });
 
     if (error) throw new Error(await extractEdgeError(error));

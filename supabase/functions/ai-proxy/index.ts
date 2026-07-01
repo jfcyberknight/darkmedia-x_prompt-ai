@@ -102,35 +102,59 @@ function errResponse(status: number, message: string): Response {
   });
 }
 
-// Diagnostic OpenRouter : interroge les endpoints /key et /credits pour connaître
-// l'état réel du compte (clé valide ? crédits restants ? rate limit ?). OpenRouter
-// masque le détail des erreurs 500 dans l'appel de complétion — ces endpoints, eux,
-// répondent en clair. Utilisé uniquement en mode debug (bouton de test) pour
-// transformer un « Internal Server Error » opaque en cause exploitable.
+// Décode la charge utile d'un JWT (base64url) sans revérifier la signature :
+// la passerelle Supabase (verify_jwt=true) l'a déjà validée en amont. On lit
+// uniquement le rôle pour distinguer un vrai utilisateur connecté de la clé anon.
+function jwtRole(req: Request): string | null {
+  const auth = req.headers.get('Authorization') ?? '';
+  const m = auth.match(/^Bearer\s+(.+)$/i);
+  if (!m) return null;
+  const parts = m[1].split('.');
+  if (parts.length !== 3) return null;
+  try {
+    let b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (b64.length % 4) b64 += '=';
+    const payload = JSON.parse(atob(b64));
+    return typeof payload.role === 'string' ? payload.role : null;
+  } catch {
+    return null;
+  }
+}
+
+// Diagnostic OpenRouter : interroge /key et /credits pour connaître l'état réel du
+// compte (clé valide ? crédits restants ?). Le détail BRUT (usage, creator_user_id,
+// label de clé…) est journalisé côté serveur uniquement (logs accessibles au
+// propriétaire) ; on ne renvoie au client qu'une CONCLUSION neutre, pour ne pas
+// exposer les infos de compte à un appelant qui fixerait debug=true.
 async function probeOpenRouter(): Promise<string> {
   if (!OPENROUTER_KEY) return 'clé OpenRouter absente côté serveur';
-  const parts: string[] = [];
   try {
     const keyRes = await fetch('https://openrouter.ai/api/v1/key', {
       headers: { 'Authorization': `Bearer ${OPENROUTER_KEY}` },
     });
-    const keyBody = await keyRes.text();
-    if (keyRes.status === 401) {
-      return `clé OpenRouter invalide ou révoquée (401 sur /key : ${keyBody})`;
-    }
-    parts.push(`/key ${keyRes.status}: ${keyBody}`);
-  } catch (e) {
-    parts.push(`/key injoignable: ${e instanceof Error ? e.message : String(e)}`);
-  }
-  try {
+    if (keyRes.status === 401) return 'clé OpenRouter invalide ou révoquée';
+    if (!keyRes.ok) return `OpenRouter /key a répondu ${keyRes.status}`;
+    const keyData = (await keyRes.json())?.data ?? {};
+    console.log('[ai-proxy] OpenRouter /key', JSON.stringify(keyData)); // owner-only (logs)
+
+    let creditsMsg = '';
     const credRes = await fetch('https://openrouter.ai/api/v1/credits', {
       headers: { 'Authorization': `Bearer ${OPENROUTER_KEY}` },
     });
-    parts.push(`/credits ${credRes.status}: ${await credRes.text()}`);
+    if (credRes.ok) {
+      const c = (await credRes.json())?.data ?? {};
+      console.log('[ai-proxy] OpenRouter /credits', JSON.stringify(c)); // owner-only (logs)
+      const remaining = Number(c.total_credits) - Number(c.total_usage);
+      if (Number.isFinite(remaining)) {
+        creditsMsg = remaining <= 0
+          ? ' — crédits épuisés (recharge nécessaire)'
+          : ` — crédits restants ≈ ${remaining.toFixed(2)}`;
+      }
+    }
+    return `clé OpenRouter valide${creditsMsg}`;
   } catch (e) {
-    parts.push(`/credits injoignable: ${e instanceof Error ? e.message : String(e)}`);
+    return `diagnostic OpenRouter impossible : ${e instanceof Error ? e.message : String(e)}`;
   }
-  return `diagnostic OpenRouter — ${parts.join(' | ')}`;
 }
 
 async function callGemini(systemPrompt: string, text: string, model: string, maxTokens: number): Promise<string> {
@@ -226,6 +250,14 @@ async function callOpenAICompat(
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
+  }
+
+  // Autorisation : verify_jwt=true garantit un JWT signé valide, MAIS la clé anon
+  // (publique, servie dans config.js) en est un. On exige donc un utilisateur
+  // réellement connecté (role=authenticated) pour empêcher qu'un tiers récupère la
+  // clé anon sur le site et détourne les clés provider (relais ouvert = coûts).
+  if (jwtRole(req) !== 'authenticated') {
+    return errResponse(401, 'Authentification requise');
   }
 
   let debug = false;

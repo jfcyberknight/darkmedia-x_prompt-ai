@@ -10,6 +10,27 @@ Ce dépôt centralise des instructions (prompts) structurées pour guider les in
 
 ---
 
+## 🖥️ Application Web (Laravel)
+
+L'application **DarkMedia Prompt AI** (bibliothèque de prompts avec assistance IA) vit dans le dossier [`laravel/`](laravel/). Elle est totalement autonome :
+
+- **Backend Laravel 13** : API REST (prompts, catégories, favoris, historique de versions) + proxy IA multi-providers (Gemini, Anthropic, OpenAI, DeepSeek, OpenRouter).
+- **Authentification par magic link** : connexion sans mot de passe via un lien email à usage unique (allowlist d'adresses via `MAGIC_LINK_ALLOWED_EMAILS`).
+- **Frontend PWA** : installable, hors-ligne, identique à l'ancienne version mais branché sur l'API Laravel (plus de dépendance Supabase).
+- **Conteneurisée** : une seule image Docker (PHP-FPM + nginx), volume persistant SQLite, prête à s'intégrer derrière le reverse-proxy d'un VPS.
+
+```bash
+cd laravel
+cp .env.docker.example .env.docker   # configurer SMTP, emails autorisés, clés IA
+docker compose up -d --build         # app disponible sur :8080
+```
+
+➡️ Guide complet : [`laravel/DEPLOYMENT.md`](laravel/DEPLOYMENT.md)
+
+> L'ancienne version statique (`app/` + `supabase/`) est conservée pour référence et sera retirée après la bascule complète.
+
+---
+
 ## 🧩 Structure des Prompts
 
 | Prompt | Rôle | Description |

@@ -1,6 +1,22 @@
 # Changelog
 Toutes les modifications notables de ce projet seront documentées dans ce fichier.
 
+## [2.0.0] - 21 juillet 2026
+
+### Added
+- **Migration complète vers Laravel 13** (`laravel/`) : l'application PWA de gestion de prompts tourne désormais en autonome, sans Supabase.
+- **Authentification par magic link** : connexion sans mot de passe par lien email signé, à usage unique, avec allowlist d'adresses (`MAGIC_LINK_ALLOWED_EMAILS`) et protection anti-énumération + rate limiting.
+- **API REST** session (CSRF) : CRUD prompts, catégories, favoris, compteur d'utilisation, historique de versions.
+- **Proxy IA en PHP** : portage de l'Edge Function Deno (Gemini, Anthropic, OpenAI, DeepSeek, OpenCode, OpenRouter avec chaîne de repli des modèles gratuits, allowlist de modèles, extraction JSON robuste).
+- **Versioning automatique des prompts** côté Eloquent (miroir du trigger Postgres d'origine).
+- **Conteneurisation prête VPS** : image unique PHP-FPM 8.4 + nginx + supervisord (worker de queue inclus), `docker-compose.yml`, volume persistant SQLite + APP_KEY, healthcheck `/up`, guide `laravel/DEPLOYMENT.md` (Traefik/nginx/Caddy).
+- Suite de tests Feature (magic link, API, versioning) — 15 tests.
+
+### Changed
+- Le frontend PWA (`laravel/public/`) consomme l'API Laravel via fetch + cookie de session au lieu du SDK Supabase.
+- Écran de connexion simplifié : un seul champ email (plus de mot de passe ni de réinitialisation).
+- Le service worker ne met plus en cache les routes `/api/` et `/auth/`.
+
 ## [1.0.0] - 13 mars 2026
 
 ### Added

@@ -1,0 +1,38 @@
+# =============================================================================
+# DarkMedia Prompt AI — déploiement conteneurisé (VPS)
+#
+#   1. cp .env.docker.example .env.docker   (puis renseigner les variables)
+#   2. docker compose up -d --build
+#   3. L'app écoute sur http://<vps>:8080 — à placer derrière votre
+#      reverse-proxy (Traefik, Caddy, nginx) qui termine le TLS.
+# =============================================================================
+
+services:
+  app:
+    build: .
+    image: darkmedia/prompt-ai:latest
+    container_name: prompt-ai
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    env_file:
+      - .env.docker
+    volumes:
+      # Données persistantes : base SQLite + APP_KEY générée au premier démarrage.
+      - prompt_ai_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/up"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    # Exemple d'intégration Traefik (décommenter et adapter) :
+    # labels:
+    #   - "traefik.enable=true"
+    #   - "traefik.http.routers.prompt-ai.rule=Host(`prompts.mondomaine.fr`)"
+    #   - "traefik.http.routers.prompt-ai.entrypoints=websecure"
+    #   - "traefik.http.routers.prompt-ai.tls.certresolver=letsencrypt"
+    #   - "traefik.http.services.prompt-ai.loadbalancer.server.port=8080"
+
+volumes:
+  prompt_ai_data:

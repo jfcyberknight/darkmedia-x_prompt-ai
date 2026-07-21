@@ -1,0 +1,109 @@
+# 🚀 Déploiement VPS — DarkMedia Prompt AI (Laravel)
+
+Application Laravel conteneurisée : PHP-FPM 8.4 + nginx dans une seule image,
+base SQLite persistée dans un volume, authentification par **magic link**
+(aucun mot de passe).
+
+## Démarrage rapide sur le VPS
+
+```bash
+# 1. Récupérer le code
+git clone https://github.com/jfcyberknight/darkmedia-x_prompt-ai.git
+cd darkmedia-x_prompt-ai/laravel
+
+# 2. Configurer l'environnement
+cp .env.docker.example .env.docker
+nano .env.docker   # SMTP, MAGIC_LINK_ALLOWED_EMAILS, clés IA, APP_URL
+
+# 3. Construire et lancer
+docker compose up -d --build
+
+# 4. Vérifier
+curl http://localhost:8080/up   # → 200 OK
+```
+
+Au premier démarrage, l'entrypoint :
+- génère et persiste `APP_KEY` dans le volume (si non fournie) ;
+- crée la base SQLite dans `/data/database.sqlite` ;
+- exécute les migrations et le seeder (catégories par défaut + prompts d'exemple) ;
+- met en cache config/routes/vues.
+
+## Variables indispensables
+
+| Variable | Rôle |
+| :--- | :--- |
+| `APP_URL` | URL publique (utilisée dans les liens des emails) |
+| `MAIL_*` | SMTP réel — sans lui, aucun magic link ne part (`MAIL_MAILER=log` pour tester : le lien s'écrit dans les logs) |
+| `MAGIC_LINK_ALLOWED_EMAILS` | Adresses autorisées, séparées par des virgules ; compte créé automatiquement à la première connexion |
+| `GEMINI_API_KEY` … | Au moins une clé provider pour activer les fonctions IA |
+
+## Intégration au reverse-proxy du VPS
+
+Le conteneur écoute en HTTP sur le port `8080` (configurable via `APP_PORT`) et
+fait confiance aux en-têtes `X-Forwarded-*` : placez-le derrière votre
+reverse-proxy qui termine le TLS.
+
+**Traefik** : décommenter les labels d'exemple dans `docker-compose.yml`.
+
+**nginx sur l'hôte** :
+
+```nginx
+server {
+    server_name prompts.mondomaine.fr;
+    listen 443 ssl http2;
+    # ... certificats ...
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+**Caddy** :
+
+```
+prompts.mondomaine.fr {
+    reverse_proxy 127.0.0.1:8080
+}
+```
+
+## Base de données
+
+- **SQLite (défaut)** : zéro dépendance, fichier dans le volume `prompt_ai_data`.
+- **MySQL / PostgreSQL** : renseigner `DB_CONNECTION`, `DB_HOST`, etc. dans
+  `.env.docker` (les drivers `pdo_mysql` et `pdo_pgsql` sont inclus dans l'image).
+
+## Sauvegarde
+
+Tout l'état persistant vit dans le volume `prompt_ai_data` :
+
+```bash
+docker run --rm -v prompt-ai_prompt_ai_data:/data -v "$PWD":/backup alpine \
+  tar czf /backup/prompt-ai-backup.tar.gz -C /data .
+```
+
+## Mise à jour
+
+```bash
+git pull
+docker compose up -d --build   # migrations rejouées automatiquement au démarrage
+```
+
+## Connexion (magic link)
+
+1. Ouvrir l'app → saisir son email (doit figurer dans `MAGIC_LINK_ALLOWED_EMAILS`).
+2. Recevoir l'email « Votre lien de connexion » et cliquer (validité 15 min, usage unique).
+3. La session dure 120 min d'inactivité (cookie « remember me » longue durée inclus).
+
+## Développement local (sans Docker)
+
+```bash
+composer install
+cp .env.example .env && php artisan key:generate
+touch database/database.sqlite
+php artisan migrate --seed
+php artisan serve   # http://localhost:8000 — magic links dans storage/logs/laravel.log
+```

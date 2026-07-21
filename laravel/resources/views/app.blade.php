@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <title>DarkMedia · Prompt AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="stylesheet" href="/style.css">
+
+  <!-- PWA Manifest & iOS Meta Tags -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#141418">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Prompt AI">
+  <link rel="apple-touch-icon" href="/favicon.svg">
+</head>
+<body>
+<div id="app">
+
+  <!-- ========== TOPBAR ========== -->
+  <header class="topbar">
+    <div class="topbar-brand">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+      </svg>
+      <span class="brand-text">DarkMedia · Prompt AI</span>
+    </div>
+    <div class="topbar-actions">
+      <span id="app-version" style="font-size:0.72rem;color:var(--text-secondary);opacity:0.8;font-variant-numeric:tabular-nums;user-select:none;"></span>
+      <a href="https://github.com/jfcyberknight/darkmedia-x_prompt-ai" target="_blank" rel="noopener noreferrer" class="btn btn-ghost icon-btn topbar-github" title="Dépôt GitHub" style="padding:0.4rem 0.6rem">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.91.58.1.79-.25.79-.56 0-.27-.01-1.17-.02-2.12-3.2.7-3.87-1.36-3.87-1.36-.53-1.33-1.29-1.69-1.29-1.69-1.05-.72.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.71 1.26 3.37.96.1-.75.4-1.26.73-1.55-2.56-.29-5.25-1.28-5.25-5.7 0-1.26.45-2.29 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.18 1.18a11.1 11.1 0 0 1 2.9-.39c.98 0 1.97.13 2.9.39 2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.24 2.76.12 3.05.74.8 1.19 1.83 1.19 3.09 0 4.43-2.7 5.41-5.27 5.69.42.36.78 1.07.78 2.16 0 1.56-.01 2.82-.01 3.2 0 .31.21.67.8.56A10.51 10.51 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5Z"/>
+        </svg>
+      </a>
+      <button id="pwa-install-btn" class="btn btn-ghost icon-btn" title="Installer l'application" style="padding: 0.4rem 0.6rem; color: var(--accent);">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+      </button>
+      <button class="btn btn-ghost icon-btn" data-action="open-settings" title="Paramètres" style="padding:0.4rem 0.6rem">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      </button>
+      <button class="btn btn-ghost icon-btn" data-action="logout" title="Déconnexion" style="padding:0.4rem 0.6rem">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
+        </svg>
+      </button>
+      <button class="btn btn-primary" data-action="new-prompt">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+        </svg>
+        <span class="btn-label">Nouveau prompt</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ========== MAIN LAYOUT ========== -->
+  <div class="main-layout">
+
+    <!-- SIDEBAR -->
+    <nav class="sidebar" id="sidebar">
+      <!-- Rempli dynamiquement par JS -->
+    </nav>
+
+    <!-- CONTENT -->
+    <main class="content">
+      <!-- TOOLBAR -->
+      <div class="toolbar">
+        <div class="search-wrap">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input
+            type="text"
+            id="search-input"
+            class="search-input"
+            placeholder="Rechercher… (Ctrl+K)"
+            autocomplete="off"
+          >
+        </div>
+        <select id="sort-select" class="sort-select">
+          <option value="created_at_desc">Plus récents</option>
+          <option value="created_at_asc">Plus anciens</option>
+          <option value="updated_desc">Modifiés récemment</option>
+          <option value="title_asc">Titre A→Z</option>
+          <option value="usage_desc">Plus utilisés</option>
+        </select>
+      </div>
+
+      <!-- STATS -->
+      <div class="stats-bar" id="stats-bar"></div>
+
+      <!-- GRID -->
+      <div class="prompts-grid" id="prompts-grid">
+        <!-- Cartes générées par JS -->
+      </div>
+    </main>
+  </div>
+
+</div><!-- #app -->
+
+<!-- ========== MODAL : ADD / EDIT ========== -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-header">
+      <h2 class="modal-title" id="modal-title">Nouveau prompt</h2>
+      <button class="modal-close" data-action="close-modal" aria-label="Fermer">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <form id="prompt-form">
+      <div class="modal-body">
+
+        <!-- IA PARSE SECTION -->
+        <div class="ai-parse-section" id="ai-parse-section">
+          <div class="ai-parse-header" data-action="toggle-ai-parse">
+            <span class="ai-parse-label">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"/>
+                <path d="M12 6v6l4 2"/>
+              </svg>
+              Colle un texte — l'IA remplit le formulaire
+            </span>
+            <button type="button" class="ai-parse-toggle" id="ai-parse-toggle" data-action="toggle-ai-parse">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+          </div>
+          <div class="ai-parse-body" id="ai-parse-body">
+            <textarea id="ai-paste-input" class="ai-paste-textarea" rows="5"
+              placeholder="Colle ici ton texte brut (description d'un prompt, conversation, article…) et l'AI extraira automatiquement le titre, contenu, tags, etc."></textarea>
+            <div class="ai-parse-actions">
+              <button type="button" class="btn btn-primary" id="ai-analyze-btn" data-action="ai-analyze">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                </svg>
+                Analyser avec l'AI
+              </button>
+              <span class="ai-parse-hint" id="ai-parse-status"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- IA IMPROVE SECTION -->
+        <div class="ai-parse-section ai-improve-section" id="ai-improve-section">
+          <div class="ai-parse-header" data-action="toggle-ai-improve">
+            <span class="ai-parse-label">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M5 3v4M3 5h4M6 17v4M4 19h4M13 3l2.5 6.5L22 12l-6.5 2.5L13 21l-2.5-6.5L4 12l6.5-2.5z"/>
+              </svg>
+              Améliore ce prompt — oriente l'AI
+            </span>
+            <button type="button" class="ai-parse-toggle" id="ai-improve-toggle" data-action="toggle-ai-improve">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9"/>
+              </svg>
+            </button>
+          </div>
+          <div class="ai-parse-body" id="ai-improve-body">
+            <textarea id="ai-improve-input" class="ai-paste-textarea" rows="3"
+              placeholder="Donne tes consignes pour orienter l'amélioration (ex : « rends-le plus concis », « ajoute des étapes de validation et un format de sortie », « adapte-le pour GPT-4o », « renforce le ton professionnel »…). Laisse vide pour une optimisation générale."></textarea>
+            <div class="ai-parse-actions">
+              <button type="button" class="btn btn-primary" id="ai-improve-btn" data-action="ai-improve">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M5 3v4M3 5h4M6 17v4M4 19h4M13 3l2.5 6.5L22 12l-6.5 2.5L13 21l-2.5-6.5L4 12l6.5-2.5z"/>
+                </svg>
+                Améliorer le prompt actuel
+              </button>
+              <span class="ai-parse-hint" id="ai-improve-status"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="field-title">Titre <span style="color:var(--danger)">*</span></label>
+          <input type="text" id="field-title" placeholder="Ex : Rédiger un README complet" required maxlength="200">
+        </div>
+
+        <div class="form-group">
+          <label for="field-description">Description courte</label>
+          <input type="text" id="field-description" placeholder="À quoi sert ce prompt ?" maxlength="300">
+        </div>
+
+        <div class="form-group">
+          <label for="field-content">Contenu du prompt <span style="color:var(--danger)">*</span></label>
+          <textarea id="field-content" rows="8" placeholder="Colle ou écris ton prompt ici…" required style="min-height:180px"></textarea>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="field-category">Catégorie</label>
+            <select id="field-category">
+              <option value="">— Aucune —</option>
+              <!-- Options injectées par JS au chargement -->
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="field-model">Modèle IA</label>
+            <input type="text" id="field-model" placeholder="Ex : claude-3, gpt-4, gemini…" list="model-list">
+            <datalist id="model-list">
+              <option value="claude-opus-4">
+              <option value="claude-sonnet-4">
+              <option value="claude-haiku-4">
+              <option value="gpt-4o">
+              <option value="gpt-4-turbo">
+              <option value="gemini-3.5-flash">
+              <option value="llama-3">
+              <option value="mistral-large">
+            </datalist>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Tags</label>
+          <div class="tags-input-wrap" id="tags-input-wrap" onclick="document.getElementById('tag-input').focus()">
+            <input type="text" id="tag-input" class="tags-input" placeholder="Ajouter un tag…">
+          </div>
+          <span class="form-hint">Appuie sur Entrée ou virgule pour ajouter un tag</span>
+        </div>
+
+        <div class="form-group">
+          <label for="field-source">Source / Origine</label>
+          <input type="text" id="field-source" placeholder="Ex : URL, projet, conversation, livre…">
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" data-action="close-modal">Annuler</button>
+        <button type="submit" class="btn btn-primary" id="save-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="20 6 9 17 4 12"/>
+          </svg>
+          Sauvegarder
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ========== MODAL : DETAIL ========== -->
+<div class="modal-overlay" id="detail-overlay">
+  <div class="modal" id="detail-modal" role="dialog" aria-modal="true" style="max-width:760px">
+    <!-- Contenu injecté dynamiquement -->
+  </div>
+</div>
+
+<!-- ========== MODAL : CONFIRM DELETE ========== -->
+<div class="modal-overlay" id="confirm-overlay">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header">
+      <h2 class="modal-title" id="confirm-title">Confirmer la suppression</h2>
+      <button class="modal-close" data-action="close-confirm" aria-label="Fermer">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:0.9rem;color:var(--text-secondary)">
+        Cette action est irréversible. L'historique des versions sera également supprimé.
+      </p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" data-action="close-confirm">Annuler</button>
+      <button class="btn btn-danger" data-action="confirm-delete">Supprimer définitivement</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== MODAL : INSTALL PWA ========== -->
+<div class="modal-overlay" id="pwa-install-overlay">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-header">
+      <h2 class="modal-title">Installer l'application</h2>
+      <button class="modal-close" data-action="close-pwa-install" aria-label="Fermer">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <div class="modal-body" style="font-size:0.92rem; line-height:1.6; display:flex; flex-direction:column; gap:1rem;">
+      <p style="color:var(--text-secondary);">
+        Pour installer <strong>DarkMedia Prompt AI</strong> sur votre appareil et l'utiliser comme une application native (hors ligne, plein écran, sans barre d'adresse) :
+      </p>
+
+      <div style="background:var(--bg-secondary); border:1px solid var(--border); border-radius:var(--radius-sm); padding:1rem; display:flex; flex-direction:column; gap:0.8rem;">
+        <h4 style="margin:0; font-size:0.95rem; font-weight:600; color:var(--text-primary); display:flex; align-items:center; gap:0.4rem;">
+          📱 Sur iPhone / iPad (Safari) :
+        </h4>
+        <ol style="margin:0; padding-left:1.2rem; color:var(--text-secondary); display:flex; flex-direction:column; gap:0.3rem;">
+          <li>Appuyez sur le bouton de partage <span style="font-size:1.1rem; vertical-align:middle;">📤</span> en bas de l'écran.</li>
+          <li>Faites défiler vers le bas et sélectionnez <strong>« Sur l'écran d'accueil »</strong> <span style="font-size:1.1rem; vertical-align:middle;">➕</span>.</li>
+        </ol>
+      </div>
+
+      <div style="background:var(--bg-secondary); border:1px solid var(--border); border-radius:var(--radius-sm); padding:1rem; display:flex; flex-direction:column; gap:0.8rem;">
+        <h4 style="margin:0; font-size:0.95rem; font-weight:600; color:var(--text-primary); display:flex; align-items:center; gap:0.4rem;">
+          💻 Sur Chrome / Edge / Firefox :
+        </h4>
+        <p style="margin:0; color:var(--text-secondary);">
+          Si vous êtes sur ordinateur ou Android, l'application est installable directement en cliquant sur le bouton <strong>« Installer l'application »</strong> dans la barre supérieure ou ci-dessous.
+        </p>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" data-action="close-pwa-install">Fermer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== LOGIN SCREEN ========== -->
+<div class="login-overlay" id="login-overlay">
+  <div class="landing-container">
+
+    <!-- LEFT: Pitch & Features -->
+    <div class="landing-pitch">
+      <div class="landing-tag">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polygon points="12 2 2 22 22 22"/>
+        </svg>
+        <span>Ingénierie de Prompts Assistée par IA</span>
+      </div>
+
+      <h1 class="landing-title-main">
+        Optimisez vos interactions et <span class="accent-text">maximisez le potentiel</span> de vos modèles d'IA.
+      </h1>
+
+      <p class="landing-description">
+        DarkMedia Prompt AI est votre bibliothèque privée et protocole d'ingénierie sémantique. Créez, catégorisez, optimisez avec l'aide de l'IA et accédez à vos configurations de prompts de haute précision instantanément.
+      </p>
+
+      <div class="landing-steps">
+        <div class="landing-step">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <strong>Connexion sans mot de passe</strong>
+            <span>Recevez un lien de connexion sécurisé par email — aucun mot de passe à retenir ni à faire fuiter.</span>
+          </div>
+        </div>
+        <div class="landing-step">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <strong>Optimisation Automatique</strong>
+            <span>Utilisez le moteur d'amélioration IA pour affiner la structure et la clarté de vos prompts.</span>
+          </div>
+        </div>
+        <div class="landing-step">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <strong>Recherche & Filtres Avancés</strong>
+            <span>Accédez instantanément à vos prompts par tags, catégories ou favoris via des raccourcis clavier rapides.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Login Box -->
+    <div class="landing-auth">
+      <div class="login-box">
+        <div class="login-logo">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+          </svg>
+        </div>
+        <h2 class="login-title">Espace Sémantique</h2>
+        <p class="login-subtitle" id="login-subtitle">Reçois ton lien de connexion par email</p>
+
+        <!-- VUE : Connexion par magic link -->
+        <div id="login-view" style="width: 100%;">
+          <form id="login-form" class="login-form">
+            <div class="form-group">
+              <label for="login-email">Email</label>
+              <input type="email" id="login-email" name="email" placeholder="ton@email.com" required autocomplete="email">
+            </div>
+            <div id="login-error" class="login-error" style="display:none"></div>
+            <div id="login-success" style="display:none;font-size:0.85rem;color:var(--success,#22c55e);margin-bottom:0.75rem;text-align:center;line-height:1.5"></div>
+            <button type="submit" class="btn btn-primary" id="login-btn" style="width:100%;justify-content:center">
+              Recevoir mon lien de connexion
+            </button>
+            <p style="margin:0.9rem 0 0;font-size:0.78rem;color:var(--text-muted,#64748b);text-align:center;line-height:1.5">
+              Clique sur le lien reçu par email pour te connecter.<br>Il est valable 15 minutes et à usage unique.
+            </p>
+          </form>
+        </div>
+
+        <!-- Installation de l'app (PWA) — accessible sans connexion -->
+        <div id="landing-install-wrap" style="margin-top:1.25rem;padding-top:1.25rem;border-top:1px solid var(--border);width:100%;display:flex;flex-direction:column;gap:0.5rem;align-items:center;">
+          <button type="button" id="landing-install-btn" class="btn btn-ghost" style="width:100%;justify-content:center;gap:0.5rem;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Installer l'application
+          </button>
+          <span style="font-size:0.78rem;color:var(--text-muted);text-align:center;">Utilisez-la comme une app native (hors ligne, plein écran).</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ========== SETTINGS MODAL ========== -->
+<div class="modal-overlay" id="settings-overlay">
+  <div class="modal" style="max-width:440px" role="dialog" aria-modal="true">
+    <div class="modal-header">
+      <h2 class="modal-title">Paramètres</h2>
+      <button class="modal-close" data-action="close-settings">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <div class="modal-body" style="display:flex;flex-direction:column;gap:1.2rem;">
+      <p style="font-size:0.88rem;color:var(--text-secondary);margin:0">
+        Les clés API des providers IA sont configurées côté serveur (variables d'environnement du conteneur). Aucun secret n'est stocké dans le navigateur.
+      </p>
+      <div style="border-top:1px solid var(--border);padding-top:1.2rem;">
+        <h4 style="margin:0 0 0.7rem 0;font-size:0.9rem;font-weight:600;color:var(--text-primary);">Fournisseur AI</h4>
+        <div style="display:flex;flex-direction:column;gap:0.7rem;">
+          <div>
+            <label for="settings-ai-provider" style="font-size:0.82rem;color:var(--text-secondary);display:block;margin-bottom:0.3rem;">Provider</label>
+            <select id="settings-ai-provider" style="width:100%;padding:0.5rem 0.7rem;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-size:0.88rem;cursor:pointer;">
+              <option value="gemini">Google Gemini</option>
+              <option value="anthropic">Anthropic (Claude)</option>
+              <option value="openai">OpenAI (GPT)</option>
+              <option value="deepseek">DeepSeek</option>
+              <option value="opencode">OpenCode</option>
+              <option value="openrouter">OpenRouter</option>
+            </select>
+          </div>
+          <div>
+            <label for="settings-ai-model" style="font-size:0.82rem;color:var(--text-secondary);display:block;margin-bottom:0.3rem;">Modèle</label>
+            <select id="settings-ai-model" style="width:100%;padding:0.5rem 0.7rem;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-size:0.88rem;cursor:pointer;">
+              <!-- Options injectées par JS selon le provider sélectionné -->
+            </select>
+            <p id="settings-ai-model-hint" style="font-size:0.76rem;color:var(--text-secondary);margin:0.3rem 0 0 0;min-height:1rem;"></p>
+          </div>
+          <div>
+            <button type="button" class="btn btn-ghost" id="btn-test-ai" data-action="test-ai-connection" style="width:100%;justify-content:center;border:1px solid var(--border);font-size:0.82rem;">
+              Tester la connexion IA
+            </button>
+            <p id="settings-ai-test-status" style="font-size:0.76rem;color:var(--text-secondary);margin:0.4rem 0 0 0;min-height:1rem;word-break:break-word;"></p>
+          </div>
+        </div>
+      </div>
+      <div style="border-top:1px solid var(--border);padding-top:1.2rem;">
+        <h4 style="margin:0 0 0.4rem 0;font-size:0.9rem;font-weight:600;color:var(--text-primary);">Maintenance</h4>
+        <p style="font-size:0.8rem;color:var(--text-secondary);margin:0 0 0.8rem 0;">
+          Associer automatiquement les catégories appropriées de l'AI à tous les prompts qui n'en ont pas.
+        </p>
+        <button type="button" class="btn btn-ghost" id="btn-auto-categorize" data-action="auto-categorize-prompts" style="color:var(--accent);width:100%;justify-content:center;border:1px dashed var(--accent-dim);">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right:4px;"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          Classer les prompts orphelins par l'AI
+        </button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" data-action="close-settings">Annuler</button>
+      <button class="btn btn-primary" data-action="save-settings">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+        Sauvegarder
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== TOASTS ========== -->
+<div id="toast-container"></div>
+
+<script src="/app.js"></script>
+</body>
+</html>

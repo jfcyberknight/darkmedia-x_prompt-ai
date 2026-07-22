@@ -33,9 +33,34 @@ Au premier démarrage, l'entrypoint :
 | Variable | Rôle |
 | :--- | :--- |
 | `APP_URL` | URL publique (utilisée dans les liens des emails) |
-| `MAIL_*` | SMTP réel — sans lui, aucun magic link ne part (`MAIL_MAILER=log` pour tester : le lien s'écrit dans les logs) |
+| `DOPPLER_TOKEN` | Service Token Doppler — injecte SMTP + clés IA au démarrage (voir ci-dessous) |
 | `MAGIC_LINK_ALLOWED_EMAILS` | Adresses autorisées, séparées par des virgules ; compte créé automatiquement à la première connexion |
-| `GEMINI_API_KEY` … | Au moins une clé provider pour activer les fonctions IA |
+| `MAIL_*` | SMTP — fourni par Doppler ; sans email configuré, aucun magic link ne part (`MAIL_MAILER=log` pour tester : le lien s'écrit dans les logs) |
+| `GEMINI_API_KEY` … | Clés provider IA — fournies par Doppler |
+
+## Secrets via Doppler
+
+Le SMTP et les clés IA sont gérés dans **Doppler**, comme pour les autres projets.
+Le conteneur embarque le CLI Doppler : si vous fournissez un `DOPPLER_TOKEN`,
+l'entrypoint relance l'app sous `doppler run` et **injecte tous les secrets du
+config Doppler en variables d'environnement au démarrage** (les valeurs Doppler
+priment sur celles de `.env.docker`).
+
+1. Dans le dashboard Doppler, ouvrez le projet/config de cette app et vérifiez
+   que les secrets SMTP y sont, aux noms natifs Laravel : `MAIL_MAILER`,
+   `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_SCHEME`
+   (`tls`/`ssl`/`null`), `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME`. (Idéalement, les
+   clés IA — `GEMINI_API_KEY`, etc. — y vivent aussi.)
+2. Créez un **Service Token** (Access → Service Tokens) lié à ce config.
+3. Renseignez-le comme `DOPPLER_TOKEN` dans `.env.docker`, puis
+   `docker compose up -d --build`.
+
+Le token porte déjà le projet et l'environnement — rien d'autre à préciser.
+Sans `DOPPLER_TOKEN`, le conteneur retombe sur les valeurs `MAIL_*` / `*_API_KEY`
+que vous auriez renseignées directement dans `.env.docker`.
+
+Vérifier l'injection : `docker logs prompt-ai | grep Doppler` doit afficher
+« Injection des secrets via Doppler… » au démarrage.
 
 ## Intégration au reverse-proxy du VPS
 

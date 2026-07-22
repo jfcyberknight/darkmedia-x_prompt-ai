@@ -40,6 +40,14 @@ RUN apk add --no-cache \
         opcache \
     && rm -rf /var/cache/apk/*
 
+# Doppler CLI : les secrets (SMTP, clés IA…) sont récupérés au démarrage depuis
+# Doppler — même gestionnaire de secrets que tous les autres projets. L'entrypoint
+# relance le conteneur sous `doppler run` quand un DOPPLER_TOKEN est fourni.
+RUN apk add --no-cache gnupg \
+    && wget -t3 -qO- https://cli.doppler.com/install.sh | sh \
+    && apk del gnupg \
+    && rm -rf /var/cache/apk/*
+
 WORKDIR /var/www/html
 
 COPY . .

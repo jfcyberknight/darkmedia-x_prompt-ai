@@ -247,7 +247,7 @@ PROMPT;
             try {
                 // jsonFormat désactivé : support inégal de response_format dans
                 // le pool gratuit ; extractJsonObject() sert de filet de sécurité.
-                return $this->callOpenAiCompat($systemPrompt, $text, $candidate, 'https://openrouter.ai/api/v1', config('ai.keys.openrouter'), 'OPENROUTER', $maxTokens, [
+                return $this->callOpenAiCompat($systemPrompt, $text, $candidate, config('ai.openrouter_base_url'), config('ai.keys.openrouter'), 'OPENROUTER', $maxTokens, [
                     'jsonFormat' => false,
                     'extraHeaders' => $headers,
                 ]);

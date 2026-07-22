@@ -23,6 +23,12 @@ return [
     ],
 
     'opencode_base_url' => env('OPENCODE_BASE_URL', 'https://api.openai.com/v1'),
+    'openrouter_base_url' => env('OPENROUTER_API_URL', 'https://openrouter.ai/api/v1'),
+
+    // Provider sélectionné par défaut côté serveur quand la requête n'en précise
+    // aucun (le front en envoie toujours un, mais on garde une valeur cohérente
+    // avec les clés réellement configurées).
+    'default_provider' => env('AI_DEFAULT_PROVIDER', 'openrouter'),
 
     'default_models' => [
         'gemini' => 'gemini-2.0-flash',

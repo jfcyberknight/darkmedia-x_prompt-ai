@@ -31,7 +31,7 @@ class AiProxyController extends Controller
         ]);
 
         $action = $validated['action'] ?? 'extract';
-        $provider = $validated['provider'] ?? 'gemini';
+        $provider = $validated['provider'] ?? config('ai.default_provider', 'openrouter');
         $requestedModel = $validated['model'] ?? '';
         $debug = (bool) ($validated['debug'] ?? false);
         $text = $validated['text'] ?? '';

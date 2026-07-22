@@ -248,7 +248,7 @@ const AI_MODELS_BY_PROVIDER = {
 
 function getAIConfig() {
   return {
-    provider: localStorage.getItem('ai_provider') || 'gemini',
+    provider: localStorage.getItem('ai_provider') || 'openrouter',
     model:    localStorage.getItem('ai_model')    || '',
   };
 }

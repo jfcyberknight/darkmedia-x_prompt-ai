@@ -1,13 +1,11 @@
 name: Deploy Prompt AI to VPS
 
 # Deploiement continu de l'app Laravel (dossier laravel/) sur le VPS OVH
-# vps-c4db969c via SSH + Cloudflare Tunnel. Meme convention que les autres apps
-# du VPS : push main -> CI -> SSH -> docker compose. Exposition publique par
-# tunnel Cloudflare uniquement (aucun port 80/443 -- regle d'or, CityPulse).
-#
-# ENTIEREMENT AUTO-PROVISIONNE : le job `deploy` clone le depot au 1er passage,
-# genere laravel/.env depuis les secrets/vars CI s'il est absent (idempotent :
-# un .env existant est preserve tel quel), configure le tunnel, puis build/up.
+# vps-c4db969c via SSH + Cloudflare Tunnel. Auto-provisionne : clone au 1er
+# passage, RECONCILIE laravel/.env depuis les secrets CI a chaque deploiement
+# (les cles gerees sont (re)ecrites ; APP_KEY et le token tunnel sont preserves),
+# configure le tunnel, puis build/up. Exposition publique par tunnel Cloudflare
+# uniquement (aucun port 80/443 -- regle d'or, CityPulse).
 #
 # Secrets requis : VPS_SSH_KEY, CF_API_TOKEN, CF_ACCOUNT_ID, MAIL_PASSWORD,
 # OPENROUTER_API_KEY. Variables optionnelles : VPS_HOST/USER/PORT/APP_PATH,
@@ -58,35 +56,15 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
-      # Reconstruit un PEM valide quel que soit le format du secret : \n
-      # litteraux, vraies lignes, espaces, ou tout colle sur une seule ligne.
-      # On retire les marqueurs, on supprime TOUS les blancs pour recuperer le
-      # corps base64 brut, puis on le ré-emballe en 70 colonnes.
       - name: Normaliser la cle SSH
         env:
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
         run: |
           norm=$(printf '%b' "$VPS_SSH_KEY")
-          body=$(printf '%s' "$norm" \
-            | sed -e 's/-----BEGIN OPENSSH PRIVATE KEY-----//g' \
-                  -e 's/-----END OPENSSH PRIVATE KEY-----//g' \
-            | tr -d '[:space:]')
-          if [ ${#body} -lt 100 ]; then
-            echo "::error::VPS_SSH_KEY : corps base64 trop court ou marqueurs PEM absents (recolle la cle complete)."
-            exit 1
-          fi
+          body=$(printf '%s' "$norm" | sed -e 's/-----BEGIN OPENSSH PRIVATE KEY-----//g' -e 's/-----END OPENSSH PRIVATE KEY-----//g' | tr -d '[:space:]')
           install -m 600 /dev/null /tmp/vps_key
-          {
-            printf '%s\n' '-----BEGIN OPENSSH PRIVATE KEY-----'
-            printf '%s' "$body" | fold -w 70
-            printf '\n%s\n' '-----END OPENSSH PRIVATE KEY-----'
-          } > /tmp/vps_key
-          if ssh-keygen -y -f /tmp/vps_key >/dev/null 2>&1; then
-            echo "Cle SSH reconstruite et valide."
-          else
-            echo "::error::VPS_SSH_KEY invalide : le corps base64 est incomplet ou altere. Recolle le PEM COMPLET (de BEGIN a END) dans le secret."
-            exit 1
-          fi
+          { printf '%s\n' '-----BEGIN OPENSSH PRIVATE KEY-----'; printf '%s' "$body" | fold -w 70; printf '\n%s\n' '-----END OPENSSH PRIVATE KEY-----'; } > /tmp/vps_key
+          ssh-keygen -y -f /tmp/vps_key >/dev/null 2>&1 || { echo '::error::VPS_SSH_KEY invalide'; exit 1; }
 
       - name: Deploy over SSH (auto-provision)
         uses: appleboy/ssh-action@v1
@@ -122,33 +100,42 @@ jobs:
             git fetch origin "$DEPLOY_BRANCH"
             git reset --hard "origin/$DEPLOY_BRANCH"
             cd laravel
-            if [ ! -f .env ]; then
-              echo "> Generation initiale de laravel/.env"
-              umask 077
-              : > .env
-              printf '%s\n' 'APP_NAME="DarkMedia Prompt AI"' >> .env
-              printf '%s\n' 'APP_ENV=production' >> .env
-              printf '%s\n' 'APP_DEBUG=false' >> .env
-              printf '%s\n' "APP_URL=https://$HOSTN" >> .env
-              printf '%s\n' 'APP_LOCALE=fr' >> .env
-              printf '%s\n' 'APP_KEY=' >> .env
-              printf '%s\n' 'DB_CONNECTION=sqlite' >> .env
-              printf '%s\n' 'DB_DATABASE=/data/database.sqlite' >> .env
-              printf '%s\n' 'MAIL_MAILER=smtp' >> .env
-              printf '%s\n' 'MAIL_HOST=smtp.gmail.com' >> .env
-              printf '%s\n' 'MAIL_PORT=587' >> .env
-              printf '%s\n' "MAIL_USERNAME=$MAIL_USERNAME" >> .env
-              printf '%s\n' "MAIL_PASSWORD=\"$MAIL_PASSWORD\"" >> .env
-              printf '%s\n' 'MAIL_SCHEME=smtp' >> .env
-              printf '%s\n' "MAIL_FROM_ADDRESS=\"$MAIL_FROM_ADDRESS\"" >> .env
-              printf '%s\n' "MAIL_FROM_NAME=\"$MAIL_FROM_NAME\"" >> .env
-              printf '%s\n' "MAGIC_LINK_ALLOWED_EMAILS=$MAGIC_LINK_ALLOWED_EMAILS" >> .env
-              printf '%s\n' 'MAGIC_LINK_EXPIRATION_MINUTES=15' >> .env
-              printf '%s\n' "OPENROUTER_API_KEY=$OPENROUTER_API_KEY" >> .env
-              printf '%s\n' "OPENROUTER_API_URL=$OPENROUTER_API_URL" >> .env
-              printf '%s\n' 'AI_TIMEOUT_SECONDS=45' >> .env
-              printf '%s\n' 'APP_PORT=8092' >> .env
-            fi
+            # 2) RECONCILIER laravel/.env : (re)ecrit les cles gerees depuis les
+            #    secrets CI (corrige un .env issu du .env.vps.example) en
+            #    preservant APP_KEY et les cles non gerees (token tunnel, profils).
+            touch .env
+            MANAGED='^(APP_NAME|APP_ENV|APP_DEBUG|APP_URL|APP_LOCALE|APP_KEY|DB_CONNECTION|DB_DATABASE|MAIL_MAILER|MAIL_HOST|MAIL_PORT|MAIL_USERNAME|MAIL_PASSWORD|MAIL_SCHEME|MAIL_FROM_ADDRESS|MAIL_FROM_NAME|MAGIC_LINK_ALLOWED_EMAILS|MAGIC_LINK_EXPIRATION_MINUTES|OPENROUTER_API_KEY|OPENROUTER_API_URL|AI_TIMEOUT_SECONDS|APP_PORT)='
+            OLD_APP_KEY=$(grep -E '^APP_KEY=' .env | head -1 | cut -d= -f2- || true)
+            grep -vE "$MANAGED" .env > .env.keep 2>/dev/null || true
+            # Mot de passe d'application Gmail : retirer les espaces (forme 16 car.).
+            MP=$(printf '%s' "$MAIL_PASSWORD" | tr -d ' ')
+            umask 077
+            {
+              printf '%s\n' 'APP_NAME="DarkMedia Prompt AI"'
+              printf '%s\n' 'APP_ENV=production'
+              printf '%s\n' 'APP_DEBUG=false'
+              printf '%s\n' "APP_URL=https://$HOSTN"
+              printf '%s\n' 'APP_LOCALE=fr'
+              printf '%s\n' "APP_KEY=$OLD_APP_KEY"
+              printf '%s\n' 'DB_CONNECTION=sqlite'
+              printf '%s\n' 'DB_DATABASE=/data/database.sqlite'
+              printf '%s\n' 'MAIL_MAILER=smtp'
+              printf '%s\n' 'MAIL_HOST=smtp.gmail.com'
+              printf '%s\n' 'MAIL_PORT=587'
+              printf '%s\n' "MAIL_USERNAME=$MAIL_USERNAME"
+              printf '%s\n' "MAIL_PASSWORD=\"$MP\""
+              printf '%s\n' 'MAIL_SCHEME=smtp'
+              printf '%s\n' "MAIL_FROM_ADDRESS=\"$MAIL_FROM_ADDRESS\""
+              printf '%s\n' "MAIL_FROM_NAME=\"$MAIL_FROM_NAME\""
+              printf '%s\n' "MAGIC_LINK_ALLOWED_EMAILS=$MAGIC_LINK_ALLOWED_EMAILS"
+              printf '%s\n' 'MAGIC_LINK_EXPIRATION_MINUTES=15'
+              printf '%s\n' "OPENROUTER_API_KEY=$OPENROUTER_API_KEY"
+              printf '%s\n' "OPENROUTER_API_URL=$OPENROUTER_API_URL"
+              printf '%s\n' 'AI_TIMEOUT_SECONDS=45'
+              printf '%s\n' 'APP_PORT=8092'
+              cat .env.keep 2>/dev/null || true
+            } > .env
+            rm -f .env.keep
             if [ -n "${CF_API_TOKEN:-}" ] && [ -n "${CF_ACCOUNT_ID:-}" ] && [ -f ../scripts/setup-cloudflare-tunnel.sh ]; then
               SKIP_DEPLOY=1 PUBLIC_HOSTNAME="$HOSTN" TUNNEL_NAME=prompt-ai \
                 ORIGIN_SERVICE=http://app:8080 bash ../scripts/setup-cloudflare-tunnel.sh \

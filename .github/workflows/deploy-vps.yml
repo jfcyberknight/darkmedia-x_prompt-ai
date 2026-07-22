@@ -8,25 +8,11 @@ name: Deploy Prompt AI to VPS
 # ENTIEREMENT AUTO-PROVISIONNE : le job `deploy` clone le depot au 1er passage,
 # genere laravel/.env depuis les secrets/vars CI s'il est absent (idempotent :
 # un .env existant est preserve tel quel), configure le tunnel, puis build/up.
-# Aucune commande manuelle sur le serveur n'est requise.
 #
-# Le job `deploy` ne tourne QUE si `ci` (tests PHPUnit) est vert ET sur main.
-# La CI tourne aussi sur les PR vers main ; le deploiement n'est jamais
-# declenche depuis une PR (garde sur refs/heads/main).
-#
-# Secrets requis (Settings -> Secrets and variables -> Actions) :
-#   VPS_SSH_KEY        cle privee SSH autorisee sur le VPS (user ubuntu)
-#   CF_API_TOKEN       jeton Cloudflare (Account.Cloudflare Tunnel.Edit + Zone.DNS.Edit)
-#   CF_ACCOUNT_ID      ID de compte Cloudflare  (Secret ou Variable)
-#   MAIL_PASSWORD      mot de passe d'application SMTP (Gmail) -- pour les magic links
-#   OPENROUTER_API_KEY cle du provider IA par defaut
-# Variables optionnelles (defauts entre parentheses) :
-#   VPS_HOST (vps-c4db969c.vps.ovh.ca) VPS_USER (ubuntu) VPS_PORT (22)
-#   VPS_APP_PATH (/opt/darkmedia-x_prompt-ai) DEPLOY_BRANCH (main)
-#   CF_TUNNEL_HOSTNAME (promptai.darkmedia-x.com)
-#   MAIL_USERNAME / MAIL_FROM_ADDRESS (vallee.jeanfrancois@gmail.com)
-#   MAIL_FROM_NAME (DarkMedia Prompt AI) MAGIC_LINK_ALLOWED_EMAILS (idem)
-#   OPENROUTER_API_URL (https://openrouter.ai/api/v1)
+# Secrets requis : VPS_SSH_KEY, CF_API_TOKEN, CF_ACCOUNT_ID, MAIL_PASSWORD,
+# OPENROUTER_API_KEY. Variables optionnelles : VPS_HOST/USER/PORT/APP_PATH,
+# DEPLOY_BRANCH, CF_TUNNEL_HOSTNAME, MAIL_USERNAME/FROM_ADDRESS/FROM_NAME,
+# MAGIC_LINK_ALLOWED_EMAILS, OPENROUTER_API_URL.
 
 on:
   push:
@@ -39,7 +25,6 @@ permissions:
   contents: read
 
 jobs:
-  # --- Barriere qualite : tests PHPUnit avant tout deploiement ---------------
   ci:
     runs-on: ubuntu-latest
     defaults:
@@ -47,49 +32,61 @@ jobs:
         working-directory: laravel
     steps:
       - uses: actions/checkout@v4
-
       - name: Setup PHP 8.4
         uses: shivammathur/setup-php@v2
         with:
           php-version: "8.4"
           extensions: mbstring, pdo_sqlite, sqlite3, bcmath, intl, zip
           coverage: none
-
       - name: Composer install
         run: composer install --prefer-dist --no-interaction --no-progress
-
       - name: Preparer l'environnement de test
         run: |
           cp .env.example .env
           php artisan key:generate
           mkdir -p database
           touch database/database.sqlite
-
       - name: Tests PHPUnit
         env:
           DB_CONNECTION: sqlite
           DB_DATABASE: database/database.sqlite
         run: php artisan test
 
-  # --- Deploiement SSH auto-provisionne -- si CI verte et sur main -----------
   deploy:
     needs: ci
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: production
     steps:
-      # La cle peut avoir ete collee avec des \n litteraux (format JSON) au lieu
-      # de vraies lignes -> PEM invalide ("ssh: no key found"). On normalise.
+      # Reconstruit un PEM valide quel que soit le format du secret : \n
+      # litteraux, vraies lignes, espaces, ou tout colle sur une seule ligne.
+      # On retire les marqueurs, on supprime TOUS les blancs pour recuperer le
+      # corps base64 brut, puis on le ré-emballe en 70 colonnes.
       - name: Normaliser la cle SSH
         env:
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
         run: |
+          norm=$(printf '%b' "$VPS_SSH_KEY")
+          body=$(printf '%s' "$norm" \
+            | sed -e 's/-----BEGIN OPENSSH PRIVATE KEY-----//g' \
+                  -e 's/-----END OPENSSH PRIVATE KEY-----//g' \
+            | tr -d '[:space:]')
+          if [ ${#body} -lt 100 ]; then
+            echo "::error::VPS_SSH_KEY : corps base64 trop court ou marqueurs PEM absents (recolle la cle complete)."
+            exit 1
+          fi
           install -m 600 /dev/null /tmp/vps_key
-          printf '%b\n' "$VPS_SSH_KEY" > /tmp/vps_key
-          # Compacte d'eventuelles lignes vides internes dupliquees puis valide.
-          ssh-keygen -y -f /tmp/vps_key >/dev/null 2>&1 \
-            && echo "Cle SSH valide" \
-            || { echo "::error::VPS_SSH_KEY invalide meme apres normalisation (verifie le collage du PEM complet)."; exit 1; }
+          {
+            printf '%s\n' '-----BEGIN OPENSSH PRIVATE KEY-----'
+            printf '%s' "$body" | fold -w 70
+            printf '\n%s\n' '-----END OPENSSH PRIVATE KEY-----'
+          } > /tmp/vps_key
+          if ssh-keygen -y -f /tmp/vps_key >/dev/null 2>&1; then
+            echo "Cle SSH reconstruite et valide."
+          else
+            echo "::error::VPS_SSH_KEY invalide : le corps base64 est incomplet ou altere. Recolle le PEM COMPLET (de BEGIN a END) dans le secret."
+            exit 1
+          fi
 
       - name: Deploy over SSH (auto-provision)
         uses: appleboy/ssh-action@v1
@@ -115,7 +112,6 @@ jobs:
             set -e
             REPO="${{ vars.VPS_APP_PATH || '/opt/darkmedia-x_prompt-ai' }}"
             HOSTN="${CF_TUNNEL_HOSTNAME:-promptai.darkmedia-x.com}"
-            # 1) Clone au premier passage (idempotent).
             if [ ! -d "$REPO/.git" ]; then
               echo "> Clone initial du depot dans $REPO"
               sudo mkdir -p "$REPO"
@@ -126,8 +122,6 @@ jobs:
             git fetch origin "$DEPLOY_BRANCH"
             git reset --hard "origin/$DEPLOY_BRANCH"
             cd laravel
-            # 2) Generer laravel/.env depuis les secrets CI s'il est absent.
-            #    Un .env existant est PRESERVE (permet un override manuel).
             if [ ! -f .env ]; then
               echo "> Generation initiale de laravel/.env"
               umask 077
@@ -155,18 +149,14 @@ jobs:
               printf '%s\n' 'AI_TIMEOUT_SECONDS=45' >> .env
               printf '%s\n' 'APP_PORT=8092' >> .env
             fi
-            # 3) Tunnel Cloudflare (cree tunnel + DNS + ecrit le token dans .env).
             if [ -n "${CF_API_TOKEN:-}" ] && [ -n "${CF_ACCOUNT_ID:-}" ] && [ -f ../scripts/setup-cloudflare-tunnel.sh ]; then
               SKIP_DEPLOY=1 PUBLIC_HOSTNAME="$HOSTN" TUNNEL_NAME=prompt-ai \
                 ORIGIN_SERVICE=http://app:8080 bash ../scripts/setup-cloudflare-tunnel.sh \
                 || echo "Tunnel non configure (non bloquant)"
             fi
-            # 4) Liberer d'eventuels conteneurs homonymes hors projet compose.
             docker rm -f prompt-ai prompt-ai-cloudflared 2>/dev/null || true
-            # 5) Build + up.
             docker compose -f docker-compose.vps.yml up -d --build
             docker image prune -f
-            # 6) Sante locale (loopback) -- immediate.
             echo "> Verification sante loopback..."
             ok=0
             for i in $(seq 1 20); do
@@ -175,8 +165,7 @@ jobs:
               [ "$code" = "200" ] && { ok=1; break; }
               sleep 6
             done
-            [ "$ok" = "1" ] && echo "OK: app en ligne en local (loopback 8092)" || { echo "::error::app locale KO (http://localhost:8092/up)"; docker compose -f docker-compose.vps.yml logs --tail=50 app || true; exit 1; }
-            # 7) Sante publique (best-effort, propagation tunnel ~1 min).
+            [ "$ok" = "1" ] && echo "OK: app en ligne en local (loopback 8092)" || { echo "::error::app locale KO"; docker compose -f docker-compose.vps.yml logs --tail=50 app || true; exit 1; }
             echo "> Verification sante publique (best-effort)..."
             for i in $(seq 1 8); do
               pcode=$(curl -fsS -o /dev/null -w '%{http_code}' "https://$HOSTN/up" 2>/dev/null || echo 000)

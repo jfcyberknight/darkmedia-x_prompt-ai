@@ -1,0 +1,60 @@
+name: Diag SMTP VPS
+
+# Diagnostic ponctuel du blocage magic-link (504). Lancer via l'onglet Actions.
+# N'affecte pas le deploiement.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diag:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Normaliser la cle SSH
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          norm=$(printf '%b' "$VPS_SSH_KEY")
+          body=$(printf '%s' "$norm" | sed -e 's/-----BEGIN OPENSSH PRIVATE KEY-----//g' -e 's/-----END OPENSSH PRIVATE KEY-----//g' | tr -d '[:space:]')
+          install -m 600 /dev/null /tmp/vps_key
+          { printf '%s\n' '-----BEGIN OPENSSH PRIVATE KEY-----'; printf '%s' "$body" | fold -w 70; printf '\n%s\n' '-----END OPENSSH PRIVATE KEY-----'; } > /tmp/vps_key
+          ssh-keygen -y -f /tmp/vps_key >/dev/null
+
+      - name: Diagnostic SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ vars.VPS_HOST || 'vps-c4db969c.vps.ovh.ca' }}
+          username: ${{ vars.VPS_USER || 'ubuntu' }}
+          port: ${{ vars.VPS_PORT || 22 }}
+          key_path: /tmp/vps_key
+          command_timeout: 4m
+          script: |
+            echo '===== 1) HOTE -> smtp.gmail.com ====='
+            for p in 587 465 25; do
+              if timeout 6 bash -c "echo > /dev/tcp/smtp.gmail.com/$p" 2>/dev/null; then
+                echo "hote  port $p : OUVERT"
+              else
+                echo "hote  port $p : BLOQUE/timeout"
+              fi
+            done
+            echo
+            echo '===== 2) CONTENEUR (php fsockopen) -> smtp.gmail.com ====='
+            for p in 587 465 25; do
+              docker exec prompt-ai php -r '$p=$argv[1];$s=@fsockopen("smtp.gmail.com",(int)$p,$e,$em,6);echo "conteneur port $p : ".($s?"OUVERT":("BLOQUE ($em)"))."\n";' "$p" 2>&1 || echo "conteneur port $p : exec KO"
+            done
+            echo
+            echo '===== 3) DNS depuis le conteneur ====='
+            docker exec prompt-ai php -r 'var_dump(gethostbynamel("smtp.gmail.com"));' 2>&1 | head -8
+            echo
+            echo '===== 4) Variables MAIL_* du conteneur (mot de passe masque) ====='
+            docker exec prompt-ai printenv 2>/dev/null | grep -E '^MAIL_|^APP_URL|^MAGIC_' | sed -E 's/(MAIL_PASSWORD=).*/\1***MASQUE***/' | sort
+            echo
+            echo '===== 5) Derniers logs de l app (40 lignes) ====='
+            docker logs prompt-ai --tail 40 2>&1 | tail -40
+            echo
+            echo '===== 6) Test d envoi Laravel (timeout 20s) ====='
+            timeout 25 docker exec prompt-ai php artisan tinker --execute='try { Illuminate\Support\Facades\Mail::raw("diag", function($m){ $m->to(config("mail.from.address"))->subject("diag"); }); echo "ENVOI OK\n"; } catch (\Throwable $e) { echo "ERREUR: ".get_class($e).": ".$e->getMessage()."\n"; }' 2>&1 | tail -15 || echo "(test d envoi : timeout ou exec KO -> confirme le blocage reseau)"

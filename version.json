@@ -1,5 +1,5 @@
 {
-  "version": "2.0.4",
+  "version": "2.0.5",
   "name": "prompt-ai",
   "description": "Bibliothèque de prompts IA — application Laravel autonome (magic link + proxy IA multi-providers)"
 }

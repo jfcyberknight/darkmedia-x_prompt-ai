@@ -36,7 +36,9 @@ return [
         'openai' => 'gpt-4o-mini',
         'deepseek' => 'deepseek-chat',
         'opencode' => 'gpt-4o-mini',
-        'openrouter' => env('OPENROUTER_MODEL', 'meta-llama/llama-3.3-70b-instruct:free'),
+        // Le tier gratuit OpenRouter (:free) a été retiré : on part sur un modèle
+        // payant très économique par défaut. Surchargeable via OPENROUTER_MODEL.
+        'openrouter' => env('OPENROUTER_MODEL', 'deepseek/deepseek-chat-v3-0324'),
     ],
 
     // Miroir du menu déroulant côté client. Sans cette liste, un utilisateur
@@ -49,16 +51,18 @@ return [
         'deepseek' => ['deepseek-chat', 'deepseek-reasoner'],
         'opencode' => ['gpt-4o-mini', 'gpt-4o'],
         'openrouter' => [
-            'meta-llama/llama-3.3-70b-instruct:free',
-            'openai/gpt-oss-120b:free',
-            'qwen/qwen3-next-80b-a3b-instruct:free',
             'deepseek/deepseek-chat-v3-0324',
             'openai/gpt-4o-mini',
             'google/gemini-2.5-flash',
+            'meta-llama/llama-3.3-70b-instruct',
             'anthropic/claude-sonnet-5',
             'anthropic/claude-opus-4-8',
             'openrouter/fusion',
-            'openrouter/free', // compat : anciennes configs sauvegardées côté client
+            // Compat : anciennes sélections « :free » sauvegardées côté client.
+            // Le tier gratuit a été retiré par OpenRouter → remappées vers le
+            // modèle payant par défaut dans resolveModel().
+            'meta-llama/llama-3.3-70b-instruct:free',
+            'openrouter/free',
         ],
     ],
 

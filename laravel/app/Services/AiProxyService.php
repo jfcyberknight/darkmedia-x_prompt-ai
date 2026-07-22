@@ -39,18 +39,8 @@ Retourne UNIQUEMENT un objet JSON valide avec ces champs :
 - category: string (la catégorie la plus appropriée parmi : Général, Documentation, Code, Analyse, Créatif, Automatisation, Débogage, Formation)
 PROMPT;
 
-    /**
-     * Modèles gratuits OpenRouter essayés en cascade quand l'utilisateur a
-     * choisi un modèle « :free » (souvent en 429/404), puis repli payant très
-     * économique qui, lui, répond toujours.
-     */
-    private const OPENROUTER_FREE_FALLBACKS = [
-        'meta-llama/llama-3.3-70b-instruct:free',
-        'openai/gpt-oss-120b:free',
-        'qwen/qwen3-next-80b-a3b-instruct:free',
-        'nousresearch/hermes-3-llama-3.1-405b:free',
-    ];
-
+    // Repli si le modèle demandé échoue : un modèle payant très économique qui
+    // répond de façon fiable. Tenté après le modèle choisi (sauf s'ils sont identiques).
     private const OPENROUTER_PAID_FALLBACK = 'deepseek/deepseek-chat-v3-0324';
 
     /**
@@ -72,10 +62,11 @@ PROMPT;
         $defaults = config('ai.default_models');
         $model = $requestedModel !== '' ? $requestedModel : ($defaults[$provider] ?? $defaults['gemini']);
 
-        // openrouter/free est un routeur aléatoire qui tombe parfois sur un
-        // modèle de raisonnement à réponse vide : remplacé par un gratuit fiable.
-        if ($provider === 'openrouter' && $model === 'openrouter/free') {
-            $model = 'meta-llama/llama-3.3-70b-instruct:free';
+        // OpenRouter a retiré son tier gratuit : tout modèle « :free » (ou
+        // l'alias openrouter/free) renvoie désormais 404. On remappe donc ces
+        // sélections héritées vers le modèle payant par défaut, qui répond.
+        if ($provider === 'openrouter' && (str_ends_with($model, ':free') || $model === 'openrouter/free')) {
+            $model = self::OPENROUTER_PAID_FALLBACK;
         }
 
         return $model;
@@ -237,16 +228,14 @@ PROMPT;
             'X-Title' => 'DarkMedia Prompt AI',
         ];
 
-        $isFreeSelection = str_ends_with($model, ':free') || $model === 'openrouter/free';
-        $candidates = $isFreeSelection
-            ? array_values(array_unique([$model, ...self::OPENROUTER_FREE_FALLBACKS, self::OPENROUTER_PAID_FALLBACK]))
-            : [$model];
+        // Modèle demandé, puis repli payant fiable s'il échoue (dédupliqué).
+        $candidates = array_values(array_unique([$model, self::OPENROUTER_PAID_FALLBACK]));
 
         $errors = [];
         foreach ($candidates as $candidate) {
             try {
-                // jsonFormat désactivé : support inégal de response_format dans
-                // le pool gratuit ; extractJsonObject() sert de filet de sécurité.
+                // jsonFormat désactivé : support inégal de response_format selon
+                // le modèle ; extractJsonObject() sert de filet de sécurité.
                 return $this->callOpenAiCompat($systemPrompt, $text, $candidate, config('ai.openrouter_base_url'), config('ai.keys.openrouter'), 'OPENROUTER', $maxTokens, [
                     'jsonFormat' => false,
                     'extraHeaders' => $headers,

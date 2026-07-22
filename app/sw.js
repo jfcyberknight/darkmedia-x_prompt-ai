@@ -3,7 +3,7 @@
 // dont l'activation purge l'ancien cache. Sans ça, la PWA installée reste figée
 // sur une vieille version (nom de cache constant = SW jamais considéré comme
 // mis à jour côté assets).
-const CACHE_NAME = 'prompt-ai-v2.0.4';
+const CACHE_NAME = 'prompt-ai-v2.0.10';
 const ASSETS = [
   './',
   './index.html',

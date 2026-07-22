@@ -4,9 +4,11 @@ name: Deploy Prompt AI to VPS
 # vps-c4db969c via SSH + Cloudflare Tunnel. Meme convention que les autres apps
 # du VPS (candidature, apartment) : push main -> CI -> SSH -> docker compose.
 #
-# Le job `deploy` ne tourne QUE si `ci` (tests PHPUnit) est vert. Exposition
-# publique via tunnel Cloudflare uniquement (aucun port 80/443 -- regle d'or du
-# VPS partage, detenus par CityPulse).
+# Le job `deploy` ne tourne QUE si `ci` (tests PHPUnit) est vert ET sur main.
+# La CI tourne aussi sur les PR vers main (validation avant merge), mais le
+# deploiement n'est jamais declenche depuis une PR (garde sur refs/heads/main).
+# Exposition publique via tunnel Cloudflare uniquement (aucun port 80/443 --
+# regle d'or du VPS partage, detenus par CityPulse).
 #
 # Prerequis (Settings -> Secrets and variables -> Actions) :
 #   Secret   VPS_SSH_KEY          cle privee SSH autorisee sur le VPS
@@ -24,6 +26,8 @@ name: Deploy Prompt AI to VPS
 
 on:
   push:
+    branches: [main]
+  pull_request:
     branches: [main]
   workflow_dispatch:
 

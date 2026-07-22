@@ -42,6 +42,15 @@ services:
       APP_URL: ${APP_URL:-https://promptai.darkmedia-x.com}
       # App joignable seulement via cloudflared -> confiance au proxy amont.
       TRUSTED_PROXIES: "*"
+      # --- Branchement sur l'AI Smart Router (privé, réseau dmx-net) ---------
+      # L'app delegue au router au lieu d'appeler OpenRouter en direct : un
+      # provider change (ex. OpenRouter retire :free) -> on corrige UNIQUEMENT
+      # dans darkmedia-x_ai-smart-router. La facade /v1 est OpenAI-compatible,
+      # donc le chemin openrouter existant (callOpenAiCompat) fonctionne tel quel.
+      # URL non-secrete cablee ici (override le .env). Reste a fournir la CLE :
+      # OPENROUTER_API_KEY = la cle d'auth du router (AI_SMART_ROUTER_HEADER_KEY).
+      AI_DEFAULT_PROVIDER: openrouter
+      OPENROUTER_API_URL: "http://dmx-ai-router:8080/v1"
     volumes:
       # Donnees persistantes : base SQLite + APP_KEY generee au 1er demarrage.
       - prompt_ai_data:/data
@@ -51,6 +60,11 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
+    networks:
+      # default : communication avec cloudflared. dmx-net : reseau interne
+      # partage du VPS pour joindre le router (http://dmx-ai-router:8080).
+      - default
+      - dmx-net
 
   # Tunnel Cloudflare (HTTPS public, aucun port entrant). Active via
   # COMPOSE_PROFILES=tunnel + CLOUDFLARE_TUNNEL_TOKEN dans le .env (ecrit par
@@ -73,3 +87,11 @@ volumes:
   # (evite la creation d'un volume vide mal prefixe lors d'un redeploiement).
   prompt_ai_data:
     name: prompt_ai_data
+
+networks:
+  # Reseau interne partage du VPS, cree par la stack ai-smart-router
+  # (docker network create dmx-net). Reference ici en external : l'app le
+  # rejoint pour appeler http://dmx-ai-router:8080 sans exposition publique.
+  dmx-net:
+    external: true
+    name: dmx-net

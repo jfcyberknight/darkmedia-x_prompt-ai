@@ -118,30 +118,29 @@ jobs:
             if [ ! -f .env ]; then
               echo "> Generation initiale de laravel/.env"
               umask 077
-              cat > .env <<EOF2
-            APP_NAME="DarkMedia Prompt AI"
-            APP_ENV=production
-            APP_DEBUG=false
-            APP_URL=https://$HOSTN
-            APP_LOCALE=fr
-            APP_KEY=
-            DB_CONNECTION=sqlite
-            DB_DATABASE=/data/database.sqlite
-            MAIL_MAILER=smtp
-            MAIL_HOST=smtp.gmail.com
-            MAIL_PORT=587
-            MAIL_USERNAME=${MAIL_USERNAME}
-            MAIL_PASSWORD="${MAIL_PASSWORD}"
-            MAIL_SCHEME=smtp
-            MAIL_FROM_ADDRESS="${MAIL_FROM_ADDRESS}"
-            MAIL_FROM_NAME="${MAIL_FROM_NAME}"
-            MAGIC_LINK_ALLOWED_EMAILS=${MAGIC_LINK_ALLOWED_EMAILS}
-            MAGIC_LINK_EXPIRATION_MINUTES=15
-            OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
-            OPENROUTER_API_URL=${OPENROUTER_API_URL}
-            AI_TIMEOUT_SECONDS=45
-            APP_PORT=8092
-            EOF2
+              : > .env
+              printf '%s\n' 'APP_NAME="DarkMedia Prompt AI"' >> .env
+              printf '%s\n' 'APP_ENV=production' >> .env
+              printf '%s\n' 'APP_DEBUG=false' >> .env
+              printf '%s\n' "APP_URL=https://$HOSTN" >> .env
+              printf '%s\n' 'APP_LOCALE=fr' >> .env
+              printf '%s\n' 'APP_KEY=' >> .env
+              printf '%s\n' 'DB_CONNECTION=sqlite' >> .env
+              printf '%s\n' 'DB_DATABASE=/data/database.sqlite' >> .env
+              printf '%s\n' 'MAIL_MAILER=smtp' >> .env
+              printf '%s\n' 'MAIL_HOST=smtp.gmail.com' >> .env
+              printf '%s\n' 'MAIL_PORT=587' >> .env
+              printf '%s\n' "MAIL_USERNAME=$MAIL_USERNAME" >> .env
+              printf '%s\n' "MAIL_PASSWORD=\"$MAIL_PASSWORD\"" >> .env
+              printf '%s\n' 'MAIL_SCHEME=smtp' >> .env
+              printf '%s\n' "MAIL_FROM_ADDRESS=\"$MAIL_FROM_ADDRESS\"" >> .env
+              printf '%s\n' "MAIL_FROM_NAME=\"$MAIL_FROM_NAME\"" >> .env
+              printf '%s\n' "MAGIC_LINK_ALLOWED_EMAILS=$MAGIC_LINK_ALLOWED_EMAILS" >> .env
+              printf '%s\n' 'MAGIC_LINK_EXPIRATION_MINUTES=15' >> .env
+              printf '%s\n' "OPENROUTER_API_KEY=$OPENROUTER_API_KEY" >> .env
+              printf '%s\n' "OPENROUTER_API_URL=$OPENROUTER_API_URL" >> .env
+              printf '%s\n' 'AI_TIMEOUT_SECONDS=45' >> .env
+              printf '%s\n' 'APP_PORT=8092' >> .env
             fi
             # 3) Tunnel Cloudflare (cree tunnel + DNS + ecrit le token dans .env).
             if [ -n "${CF_API_TOKEN:-}" ] && [ -n "${CF_ACCOUNT_ID:-}" ] && [ -f ../scripts/setup-cloudflare-tunnel.sh ]; then

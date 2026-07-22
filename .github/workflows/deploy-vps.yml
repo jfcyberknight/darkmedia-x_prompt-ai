@@ -2,27 +2,31 @@ name: Deploy Prompt AI to VPS
 
 # Deploiement continu de l'app Laravel (dossier laravel/) sur le VPS OVH
 # vps-c4db969c via SSH + Cloudflare Tunnel. Meme convention que les autres apps
-# du VPS (candidature, apartment) : push main -> CI -> SSH -> docker compose.
+# du VPS : push main -> CI -> SSH -> docker compose. Exposition publique par
+# tunnel Cloudflare uniquement (aucun port 80/443 -- regle d'or, CityPulse).
+#
+# ENTIEREMENT AUTO-PROVISIONNE : le job `deploy` clone le depot au 1er passage,
+# genere laravel/.env depuis les secrets/vars CI s'il est absent (idempotent :
+# un .env existant est preserve tel quel), configure le tunnel, puis build/up.
+# Aucune commande manuelle sur le serveur n'est requise.
 #
 # Le job `deploy` ne tourne QUE si `ci` (tests PHPUnit) est vert ET sur main.
-# La CI tourne aussi sur les PR vers main (validation avant merge), mais le
-# deploiement n'est jamais declenche depuis une PR (garde sur refs/heads/main).
-# Exposition publique via tunnel Cloudflare uniquement (aucun port 80/443 --
-# regle d'or du VPS partage, detenus par CityPulse).
+# La CI tourne aussi sur les PR vers main ; le deploiement n'est jamais
+# declenche depuis une PR (garde sur refs/heads/main).
 #
-# Prerequis (Settings -> Secrets and variables -> Actions) :
-#   Secret   VPS_SSH_KEY          cle privee SSH autorisee sur le VPS
-#   Secret   VPS_KNOWN_HOSTS      (optionnel) known_hosts strict (sinon TOFU)
-#   Variable VPS_HOST             (defaut vps-c4db969c.vps.ovh.ca)
-#   Variable VPS_USER             (defaut ubuntu)
-#   Variable VPS_PORT             (defaut 22)
-#   Variable VPS_APP_PATH         (defaut /opt/darkmedia-x_prompt-ai)
-#   Variable DEPLOY_BRANCH        (defaut main)
-#   Secret   CF_API_TOKEN         jeton API Cloudflare (Tunnel.Edit + DNS.Edit)
-#   Secret/Var CF_ACCOUNT_ID      ID de compte Cloudflare
-#   Secret/Var CF_TUNNEL_HOSTNAME (defaut promptai.darkmedia-x.com)
-#
-# 1re mise en ligne : voir DEPLOY-VPS.md (clone initial + laravel/.env).
+# Secrets requis (Settings -> Secrets and variables -> Actions) :
+#   VPS_SSH_KEY        cle privee SSH autorisee sur le VPS (user ubuntu)
+#   CF_API_TOKEN       jeton Cloudflare (Account.Cloudflare Tunnel.Edit + Zone.DNS.Edit)
+#   CF_ACCOUNT_ID      ID de compte Cloudflare  (Secret ou Variable)
+#   MAIL_PASSWORD      mot de passe d'application SMTP (Gmail) -- pour les magic links
+#   OPENROUTER_API_KEY cle du provider IA par defaut
+# Variables optionnelles (defauts entre parentheses) :
+#   VPS_HOST (vps-c4db969c.vps.ovh.ca) VPS_USER (ubuntu) VPS_PORT (22)
+#   VPS_APP_PATH (/opt/darkmedia-x_prompt-ai) DEPLOY_BRANCH (main)
+#   CF_TUNNEL_HOSTNAME (promptai.darkmedia-x.com)
+#   MAIL_USERNAME / MAIL_FROM_ADDRESS (vallee.jeanfrancois@gmail.com)
+#   MAIL_FROM_NAME (DarkMedia Prompt AI) MAGIC_LINK_ALLOWED_EMAILS (idem)
+#   OPENROUTER_API_URL (https://openrouter.ai/api/v1)
 
 on:
   push:
@@ -67,53 +71,103 @@ jobs:
           DB_DATABASE: database/database.sqlite
         run: php artisan test
 
-  # --- Deploiement SSH -- uniquement si la CI passe et sur main ---------------
+  # --- Deploiement SSH auto-provisionne -- si CI verte et sur main -----------
   deploy:
     needs: ci
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - name: Deploy over SSH
+      - name: Deploy over SSH (auto-provision)
         uses: appleboy/ssh-action@v1
         env:
           CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
           CF_ACCOUNT_ID: ${{ vars.CF_ACCOUNT_ID || secrets.CF_ACCOUNT_ID }}
           CF_TUNNEL_HOSTNAME: ${{ vars.CF_TUNNEL_HOSTNAME || secrets.CF_TUNNEL_HOSTNAME }}
           DEPLOY_BRANCH: ${{ vars.DEPLOY_BRANCH || 'main' }}
+          MAIL_USERNAME: ${{ vars.MAIL_USERNAME || 'vallee.jeanfrancois@gmail.com' }}
+          MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
+          MAIL_FROM_ADDRESS: ${{ vars.MAIL_FROM_ADDRESS || 'vallee.jeanfrancois@gmail.com' }}
+          MAIL_FROM_NAME: ${{ vars.MAIL_FROM_NAME || 'DarkMedia Prompt AI' }}
+          MAGIC_LINK_ALLOWED_EMAILS: ${{ vars.MAGIC_LINK_ALLOWED_EMAILS || 'vallee.jeanfrancois@gmail.com' }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENROUTER_API_URL: ${{ vars.OPENROUTER_API_URL || 'https://openrouter.ai/api/v1' }}
         with:
           host: ${{ vars.VPS_HOST || 'vps-c4db969c.vps.ovh.ca' }}
           username: ${{ vars.VPS_USER || 'ubuntu' }}
           port: ${{ vars.VPS_PORT || 22 }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          envs: CF_API_TOKEN,CF_ACCOUNT_ID,CF_TUNNEL_HOSTNAME,DEPLOY_BRANCH
+          envs: CF_API_TOKEN,CF_ACCOUNT_ID,CF_TUNNEL_HOSTNAME,DEPLOY_BRANCH,MAIL_USERNAME,MAIL_PASSWORD,MAIL_FROM_ADDRESS,MAIL_FROM_NAME,MAGIC_LINK_ALLOWED_EMAILS,OPENROUTER_API_KEY,OPENROUTER_API_URL
           script: |
             set -e
             REPO="${{ vars.VPS_APP_PATH || '/opt/darkmedia-x_prompt-ai' }}"
+            HOSTN="${CF_TUNNEL_HOSTNAME:-promptai.darkmedia-x.com}"
+            # 1) Clone au premier passage (idempotent).
             if [ ! -d "$REPO/.git" ]; then
-              echo "::error::$REPO absent sur le VPS -- cloner d'abord le depot (voir DEPLOY-VPS.md)."
-              exit 1
+              echo "> Clone initial du depot dans $REPO"
+              sudo mkdir -p "$REPO"
+              sudo chown "$(id -u):$(id -g)" "$REPO"
+              git clone https://github.com/jfcyberknight/darkmedia-x_prompt-ai.git "$REPO"
             fi
             cd "$REPO"
-            # Sauvegarde du .env de prod autour du reset (secrets runtime).
-            cp -f laravel/.env /tmp/prompt-ai.env.bak 2>/dev/null || true
             git fetch origin "$DEPLOY_BRANCH"
             git reset --hard "origin/$DEPLOY_BRANCH"
             cd laravel
-            if [ ! -f .env ] && [ -f /tmp/prompt-ai.env.bak ]; then cp -f /tmp/prompt-ai.env.bak .env; fi
+            # 2) Generer laravel/.env depuis les secrets CI s'il est absent.
+            #    Un .env existant est PRESERVE (permet un override manuel).
             if [ ! -f .env ]; then
-              echo "::error::laravel/.env absent sur le VPS -- le provisionner depuis .env.vps.example (voir DEPLOY-VPS.md)."
-              exit 1
+              echo "> Generation initiale de laravel/.env"
+              umask 077
+              : > .env
+              printf '%s\n' 'APP_NAME="DarkMedia Prompt AI"' >> .env
+              printf '%s\n' 'APP_ENV=production' >> .env
+              printf '%s\n' 'APP_DEBUG=false' >> .env
+              printf '%s\n' "APP_URL=https://$HOSTN" >> .env
+              printf '%s\n' 'APP_LOCALE=fr' >> .env
+              printf '%s\n' 'APP_KEY=' >> .env
+              printf '%s\n' 'DB_CONNECTION=sqlite' >> .env
+              printf '%s\n' 'DB_DATABASE=/data/database.sqlite' >> .env
+              printf '%s\n' 'MAIL_MAILER=smtp' >> .env
+              printf '%s\n' 'MAIL_HOST=smtp.gmail.com' >> .env
+              printf '%s\n' 'MAIL_PORT=587' >> .env
+              printf '%s\n' "MAIL_USERNAME=$MAIL_USERNAME" >> .env
+              printf '%s\n' "MAIL_PASSWORD=\"$MAIL_PASSWORD\"" >> .env
+              printf '%s\n' 'MAIL_SCHEME=smtp' >> .env
+              printf '%s\n' "MAIL_FROM_ADDRESS=\"$MAIL_FROM_ADDRESS\"" >> .env
+              printf '%s\n' "MAIL_FROM_NAME=\"$MAIL_FROM_NAME\"" >> .env
+              printf '%s\n' "MAGIC_LINK_ALLOWED_EMAILS=$MAGIC_LINK_ALLOWED_EMAILS" >> .env
+              printf '%s\n' 'MAGIC_LINK_EXPIRATION_MINUTES=15' >> .env
+              printf '%s\n' "OPENROUTER_API_KEY=$OPENROUTER_API_KEY" >> .env
+              printf '%s\n' "OPENROUTER_API_URL=$OPENROUTER_API_URL" >> .env
+              printf '%s\n' 'AI_TIMEOUT_SECONDS=45' >> .env
+              printf '%s\n' 'APP_PORT=8092' >> .env
             fi
-            # Tunnel Cloudflare (auto) si jeton API fourni.
+            # 3) Tunnel Cloudflare (cree tunnel + DNS + ecrit le token dans .env).
             if [ -n "${CF_API_TOKEN:-}" ] && [ -n "${CF_ACCOUNT_ID:-}" ] && [ -f ../scripts/setup-cloudflare-tunnel.sh ]; then
-              SKIP_DEPLOY=1 PUBLIC_HOSTNAME="${CF_TUNNEL_HOSTNAME:-promptai.darkmedia-x.com}" \
-                TUNNEL_NAME=prompt-ai ORIGIN_SERVICE=http://app:8080 \
-                bash ../scripts/setup-cloudflare-tunnel.sh || echo "Tunnel non configure (non bloquant)"
+              SKIP_DEPLOY=1 PUBLIC_HOSTNAME="$HOSTN" TUNNEL_NAME=prompt-ai \
+                ORIGIN_SERVICE=http://app:8080 bash ../scripts/setup-cloudflare-tunnel.sh \
+                || echo "Tunnel non configure (non bloquant)"
             fi
-            # Si un conteneur du meme nom tourne hors de ce projet compose (ex.
-            # demarrage manuel initial), `up` echoue sur un conflit de nom. On
-            # le libere ; le volume nomme (prompt_ai_data) survit.
+            # 4) Liberer d'eventuels conteneurs homonymes hors projet compose.
             docker rm -f prompt-ai prompt-ai-cloudflared 2>/dev/null || true
+            # 5) Build + up.
             docker compose -f docker-compose.vps.yml up -d --build
             docker image prune -f
+            # 6) Sante locale (loopback) -- immediate.
+            echo "> Verification sante loopback..."
+            ok=0
+            for i in $(seq 1 20); do
+              code=$(curl -fsS -o /dev/null -w '%{http_code}' http://localhost:8092/up 2>/dev/null || echo 000)
+              echo "  tentative $i : HTTP $code"
+              [ "$code" = "200" ] && { ok=1; break; }
+              sleep 6
+            done
+            [ "$ok" = "1" ] && echo "OK: app en ligne en local (loopback 8092)" || { echo "::error::app locale KO (http://localhost:8092/up)"; docker compose -f docker-compose.vps.yml logs --tail=50 app || true; exit 1; }
+            # 7) Sante publique (best-effort, propagation tunnel ~1 min).
+            echo "> Verification sante publique (best-effort)..."
+            for i in $(seq 1 8); do
+              pcode=$(curl -fsS -o /dev/null -w '%{http_code}' "https://$HOSTN/up" 2>/dev/null || echo 000)
+              echo "  public $i : HTTP $pcode"
+              [ "$pcode" = "200" ] && { echo "OK: https://$HOSTN en ligne"; break; }
+              sleep 15
+            done

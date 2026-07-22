@@ -1,0 +1,75 @@
+# =============================================================================
+# docker-compose.vps.yml -- Deploiement sur le VPS OVH PARTAGE (vps-ovh).
+# -----------------------------------------------------------------------------
+# Variante VPS de docker-compose.yml (generique << :8080 derriere ton
+# reverse-proxy >>). Sur le VPS partage vps-c4db969c, 80/443 sont pris par
+# CityPulse, donc :
+#   * exposition publique via **Cloudflare Tunnel** (sortant, aucun port entrant) ;
+#   * port applicatif publie seulement en **loopback** (diagnostic local) ;
+#   * conteneurs/volume prefixes **prompt-ai** pour l'isolation par app.
+#
+# Pilote par le depot central vps-ovh (config/apps.conf) et le workflow
+# .github/workflows/deploy-vps.yml de ce depot.
+#
+#   cp .env.vps.example .env       # renseigner SMTP, emails autorises, cles IA
+#   # Le tunnel (CLOUDFLARE_TUNNEL_TOKEN + COMPOSE_PROFILES=tunnel + APP_URL) est
+#   # ecrit par ../scripts/setup-cloudflare-tunnel.sh, appele par le workflow.
+#   COMPOSE_PROFILES=tunnel docker compose -f docker-compose.vps.yml up -d --build
+#
+# L'app (PHP-FPM + nginx) ecoute en :8080. Le tunnel route
+# promptai.darkmedia-x.com -> http://app:8080. APP_KEY, base SQLite, migrations
+# et seed sont geres automatiquement au demarrage (docker/entrypoint.sh).
+# =============================================================================
+
+name: prompt-ai
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: darkmedia/prompt-ai:latest
+    container_name: prompt-ai
+    restart: unless-stopped
+    # Publie uniquement sur la loopback (curl http://localhost:8092 sur le
+    # serveur). Le point d'entree public est le tunnel, pas ce port.
+    ports:
+      - "127.0.0.1:${APP_PORT:-8092}:8080"
+    env_file: .env
+    environment:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      APP_URL: ${APP_URL:-https://promptai.darkmedia-x.com}
+      # App joignable seulement via cloudflared -> confiance au proxy amont.
+      TRUSTED_PROXIES: "*"
+    volumes:
+      # Donnees persistantes : base SQLite + APP_KEY generee au 1er demarrage.
+      - prompt_ai_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/up"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  # Tunnel Cloudflare (HTTPS public, aucun port entrant). Active via
+  # COMPOSE_PROFILES=tunnel + CLOUDFLARE_TUNNEL_TOKEN dans le .env (ecrit par
+  # ../scripts/setup-cloudflare-tunnel.sh). L'ingress
+  # promptai.darkmedia-x.com -> http://app:8080 est gere cote Cloudflare
+  # (config_src=cloudflare), donc pas de redemarrage au changement d'ingress.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: prompt-ai-cloudflared
+    restart: unless-stopped
+    profiles: ["tunnel"]
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      - app
+
+volumes:
+  # Nom epingle pour rester stable quel que soit le nom de projet compose
+  # (evite la creation d'un volume vide mal prefixe lors d'un redeploiement).
+  prompt_ai_data:
+    name: prompt_ai_data

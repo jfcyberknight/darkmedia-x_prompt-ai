@@ -1,0 +1,115 @@
+name: Deploy Prompt AI to VPS
+
+# Deploiement continu de l'app Laravel (dossier laravel/) sur le VPS OVH
+# vps-c4db969c via SSH + Cloudflare Tunnel. Meme convention que les autres apps
+# du VPS (candidature, apartment) : push main -> CI -> SSH -> docker compose.
+#
+# Le job `deploy` ne tourne QUE si `ci` (tests PHPUnit) est vert. Exposition
+# publique via tunnel Cloudflare uniquement (aucun port 80/443 -- regle d'or du
+# VPS partage, detenus par CityPulse).
+#
+# Prerequis (Settings -> Secrets and variables -> Actions) :
+#   Secret   VPS_SSH_KEY          cle privee SSH autorisee sur le VPS
+#   Secret   VPS_KNOWN_HOSTS      (optionnel) known_hosts strict (sinon TOFU)
+#   Variable VPS_HOST             (defaut vps-c4db969c.vps.ovh.ca)
+#   Variable VPS_USER             (defaut ubuntu)
+#   Variable VPS_PORT             (defaut 22)
+#   Variable VPS_APP_PATH         (defaut /opt/darkmedia-x_prompt-ai)
+#   Variable DEPLOY_BRANCH        (defaut main)
+#   Secret   CF_API_TOKEN         jeton API Cloudflare (Tunnel.Edit + DNS.Edit)
+#   Secret/Var CF_ACCOUNT_ID      ID de compte Cloudflare
+#   Secret/Var CF_TUNNEL_HOSTNAME (defaut promptai.darkmedia-x.com)
+#
+# 1re mise en ligne : voir DEPLOY-VPS.md (clone initial + laravel/.env).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # --- Barriere qualite : tests PHPUnit avant tout deploiement ---------------
+  ci:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: laravel
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.4"
+          extensions: mbstring, pdo_sqlite, sqlite3, bcmath, intl, zip
+          coverage: none
+
+      - name: Composer install
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Preparer l'environnement de test
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          mkdir -p database
+          touch database/database.sqlite
+
+      - name: Tests PHPUnit
+        env:
+          DB_CONNECTION: sqlite
+          DB_DATABASE: database/database.sqlite
+        run: php artisan test
+
+  # --- Deploiement SSH -- uniquement si la CI passe et sur main ---------------
+  deploy:
+    needs: ci
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1
+        env:
+          CF_API_TOKEN: ${{ secrets.CF_API_TOKEN }}
+          CF_ACCOUNT_ID: ${{ vars.CF_ACCOUNT_ID || secrets.CF_ACCOUNT_ID }}
+          CF_TUNNEL_HOSTNAME: ${{ vars.CF_TUNNEL_HOSTNAME || secrets.CF_TUNNEL_HOSTNAME }}
+          DEPLOY_BRANCH: ${{ vars.DEPLOY_BRANCH || 'main' }}
+        with:
+          host: ${{ vars.VPS_HOST || 'vps-c4db969c.vps.ovh.ca' }}
+          username: ${{ vars.VPS_USER || 'ubuntu' }}
+          port: ${{ vars.VPS_PORT || 22 }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          envs: CF_API_TOKEN,CF_ACCOUNT_ID,CF_TUNNEL_HOSTNAME,DEPLOY_BRANCH
+          script: |
+            set -e
+            REPO="${{ vars.VPS_APP_PATH || '/opt/darkmedia-x_prompt-ai' }}"
+            if [ ! -d "$REPO/.git" ]; then
+              echo "::error::$REPO absent sur le VPS -- cloner d'abord le depot (voir DEPLOY-VPS.md)."
+              exit 1
+            fi
+            cd "$REPO"
+            # Sauvegarde du .env de prod autour du reset (secrets runtime).
+            cp -f laravel/.env /tmp/prompt-ai.env.bak 2>/dev/null || true
+            git fetch origin "$DEPLOY_BRANCH"
+            git reset --hard "origin/$DEPLOY_BRANCH"
+            cd laravel
+            if [ ! -f .env ] && [ -f /tmp/prompt-ai.env.bak ]; then cp -f /tmp/prompt-ai.env.bak .env; fi
+            if [ ! -f .env ]; then
+              echo "::error::laravel/.env absent sur le VPS -- le provisionner depuis .env.vps.example (voir DEPLOY-VPS.md)."
+              exit 1
+            fi
+            # Tunnel Cloudflare (auto) si jeton API fourni.
+            if [ -n "${CF_API_TOKEN:-}" ] && [ -n "${CF_ACCOUNT_ID:-}" ] && [ -f ../scripts/setup-cloudflare-tunnel.sh ]; then
+              SKIP_DEPLOY=1 PUBLIC_HOSTNAME="${CF_TUNNEL_HOSTNAME:-promptai.darkmedia-x.com}" \
+                TUNNEL_NAME=prompt-ai ORIGIN_SERVICE=http://app:8080 \
+                bash ../scripts/setup-cloudflare-tunnel.sh || echo "Tunnel non configure (non bloquant)"
+            fi
+            # Si un conteneur du meme nom tourne hors de ce projet compose (ex.
+            # demarrage manuel initial), `up` echoue sur un conflit de nom. On
+            # le libere ; le volume nomme (prompt_ai_data) survit.
+            docker rm -f prompt-ai prompt-ai-cloudflared 2>/dev/null || true
+            docker compose -f docker-compose.vps.yml up -d --build
+            docker image prune -f

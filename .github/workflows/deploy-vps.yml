@@ -78,6 +78,19 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
+      # La cle peut avoir ete collee avec des \n litteraux (format JSON) au lieu
+      # de vraies lignes -> PEM invalide ("ssh: no key found"). On normalise.
+      - name: Normaliser la cle SSH
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          install -m 600 /dev/null /tmp/vps_key
+          printf '%b\n' "$VPS_SSH_KEY" > /tmp/vps_key
+          # Compacte d'eventuelles lignes vides internes dupliquees puis valide.
+          ssh-keygen -y -f /tmp/vps_key >/dev/null 2>&1 \
+            && echo "Cle SSH valide" \
+            || { echo "::error::VPS_SSH_KEY invalide meme apres normalisation (verifie le collage du PEM complet)."; exit 1; }
+
       - name: Deploy over SSH (auto-provision)
         uses: appleboy/ssh-action@v1
         env:
@@ -96,7 +109,7 @@ jobs:
           host: ${{ vars.VPS_HOST || 'vps-c4db969c.vps.ovh.ca' }}
           username: ${{ vars.VPS_USER || 'ubuntu' }}
           port: ${{ vars.VPS_PORT || 22 }}
-          key: ${{ secrets.VPS_SSH_KEY }}
+          key_path: /tmp/vps_key
           envs: CF_API_TOKEN,CF_ACCOUNT_ID,CF_TUNNEL_HOSTNAME,DEPLOY_BRANCH,MAIL_USERNAME,MAIL_PASSWORD,MAIL_FROM_ADDRESS,MAIL_FROM_NAME,MAGIC_LINK_ALLOWED_EMAILS,OPENROUTER_API_KEY,OPENROUTER_API_URL
           script: |
             set -e

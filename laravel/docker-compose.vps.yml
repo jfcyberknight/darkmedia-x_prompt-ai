@@ -51,6 +51,12 @@ services:
       # OPENROUTER_API_KEY = la cle d'auth du router (AI_SMART_ROUTER_HEADER_KEY).
       AI_DEFAULT_PROVIDER: openrouter
       OPENROUTER_API_URL: "http://dmx-ai-router:8080/v1"
+      # --- E-mail via le service privé dmx-mailer (réseau dmx-net) ------------
+      # Les liens magiques passent par le service central : plus de SMTP dans
+      # cette app. Reste à fournir DMX_MAILER_KEY (=clé d'auth du service,
+      # DMX_MAILER_HEADER_KEY) via le .env / Doppler.
+      MAIL_MAILER: dmxmailer
+      DMX_MAILER_URL: "http://dmx-mailer:8080"
     volumes:
       # Donnees persistantes : base SQLite + APP_KEY generee au 1er demarrage.
       - prompt_ai_data:/data

@@ -79,6 +79,15 @@ return [
             'transport' => 'array',
         ],
 
+        // Service e-mail privé du VPS (dmx-mailer) : envoi centralisé sans SMTP
+        // local. Transport enregistré dans AppServiceProvider::boot().
+        'dmxmailer' => [
+            'transport' => 'dmxmailer',
+            'url' => env('DMX_MAILER_URL', 'http://dmx-mailer:8080'),
+            'key' => env('DMX_MAILER_KEY'),
+            'timeout' => (int) env('DMX_MAILER_TIMEOUT', 20),
+        ],
+
         'failover' => [
             'transport' => 'failover',
             'mailers' => [

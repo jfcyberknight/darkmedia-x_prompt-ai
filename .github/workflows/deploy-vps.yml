@@ -7,9 +7,10 @@ name: Deploy Prompt AI to VPS
 # configure le tunnel, puis build/up. Exposition publique par tunnel Cloudflare
 # uniquement (aucun port 80/443 -- regle d'or, CityPulse).
 #
-# Secrets requis : VPS_SSH_KEY, CF_API_TOKEN, CF_ACCOUNT_ID, MAIL_PASSWORD,
-# OPENROUTER_API_KEY. Variables optionnelles : VPS_HOST/USER/PORT/APP_PATH,
-# DEPLOY_BRANCH, CF_TUNNEL_HOSTNAME, MAIL_USERNAME/FROM_ADDRESS/FROM_NAME,
+# Secrets requis : VPS_SSH_KEY, CF_API_TOKEN, CF_ACCOUNT_ID, DMX_MAILER_KEY
+# (clé d'auth du service e-mail privé dmx-mailer), OPENROUTER_API_KEY.
+# Variables optionnelles : VPS_HOST/USER/PORT/APP_PATH, DEPLOY_BRANCH,
+# CF_TUNNEL_HOSTNAME, DMX_MAILER_URL, MAIL_FROM_ADDRESS/FROM_NAME,
 # MAGIC_LINK_ALLOWED_EMAILS, OPENROUTER_API_URL.
 
 on:
@@ -73,8 +74,8 @@ jobs:
           CF_ACCOUNT_ID: ${{ vars.CF_ACCOUNT_ID || secrets.CF_ACCOUNT_ID }}
           CF_TUNNEL_HOSTNAME: ${{ vars.CF_TUNNEL_HOSTNAME || secrets.CF_TUNNEL_HOSTNAME }}
           DEPLOY_BRANCH: ${{ vars.DEPLOY_BRANCH || 'main' }}
-          MAIL_USERNAME: ${{ vars.MAIL_USERNAME || 'vallee.jeanfrancois@gmail.com' }}
-          MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
+          DMX_MAILER_URL: ${{ vars.DMX_MAILER_URL || 'http://dmx-mailer:8080' }}
+          DMX_MAILER_KEY: ${{ secrets.DMX_MAILER_KEY }}
           MAIL_FROM_ADDRESS: ${{ vars.MAIL_FROM_ADDRESS || 'vallee.jeanfrancois@gmail.com' }}
           MAIL_FROM_NAME: ${{ vars.MAIL_FROM_NAME || 'DarkMedia Prompt AI' }}
           MAGIC_LINK_ALLOWED_EMAILS: ${{ vars.MAGIC_LINK_ALLOWED_EMAILS || 'vallee.jeanfrancois@gmail.com' }}
@@ -85,7 +86,7 @@ jobs:
           username: ${{ vars.VPS_USER || 'ubuntu' }}
           port: ${{ vars.VPS_PORT || 22 }}
           key_path: /tmp/vps_key
-          envs: CF_API_TOKEN,CF_ACCOUNT_ID,CF_TUNNEL_HOSTNAME,DEPLOY_BRANCH,MAIL_USERNAME,MAIL_PASSWORD,MAIL_FROM_ADDRESS,MAIL_FROM_NAME,MAGIC_LINK_ALLOWED_EMAILS,OPENROUTER_API_KEY,OPENROUTER_API_URL
+          envs: CF_API_TOKEN,CF_ACCOUNT_ID,CF_TUNNEL_HOSTNAME,DEPLOY_BRANCH,DMX_MAILER_URL,DMX_MAILER_KEY,MAIL_FROM_ADDRESS,MAIL_FROM_NAME,MAGIC_LINK_ALLOWED_EMAILS,OPENROUTER_API_KEY,OPENROUTER_API_URL
           script: |
             set -e
             REPO="${{ vars.VPS_APP_PATH || '/opt/darkmedia-x_prompt-ai' }}"
@@ -104,11 +105,9 @@ jobs:
             #    secrets CI (corrige un .env issu du .env.vps.example) en
             #    preservant APP_KEY et les cles non gerees (token tunnel, profils).
             touch .env
-            MANAGED='^(APP_NAME|APP_ENV|APP_DEBUG|APP_URL|APP_LOCALE|APP_KEY|DB_CONNECTION|DB_DATABASE|MAIL_MAILER|MAIL_HOST|MAIL_PORT|MAIL_USERNAME|MAIL_PASSWORD|MAIL_SCHEME|MAIL_FROM_ADDRESS|MAIL_FROM_NAME|MAGIC_LINK_ALLOWED_EMAILS|MAGIC_LINK_EXPIRATION_MINUTES|OPENROUTER_API_KEY|OPENROUTER_API_URL|AI_TIMEOUT_SECONDS|APP_PORT)='
+            MANAGED='^(APP_NAME|APP_ENV|APP_DEBUG|APP_URL|APP_LOCALE|APP_KEY|DB_CONNECTION|DB_DATABASE|MAIL_MAILER|DMX_MAILER_URL|DMX_MAILER_KEY|MAIL_FROM_ADDRESS|MAIL_FROM_NAME|MAGIC_LINK_ALLOWED_EMAILS|MAGIC_LINK_EXPIRATION_MINUTES|OPENROUTER_API_KEY|OPENROUTER_API_URL|AI_TIMEOUT_SECONDS|APP_PORT)='
             OLD_APP_KEY=$(grep -E '^APP_KEY=' .env | head -1 | cut -d= -f2- || true)
             grep -vE "$MANAGED" .env > .env.keep 2>/dev/null || true
-            # Mot de passe d'application Gmail : retirer les espaces (forme 16 car.).
-            MP=$(printf '%s' "$MAIL_PASSWORD" | tr -d ' ')
             umask 077
             {
               printf '%s\n' 'APP_NAME="DarkMedia Prompt AI"'
@@ -119,12 +118,9 @@ jobs:
               printf '%s\n' "APP_KEY=$OLD_APP_KEY"
               printf '%s\n' 'DB_CONNECTION=sqlite'
               printf '%s\n' 'DB_DATABASE=/data/database.sqlite'
-              printf '%s\n' 'MAIL_MAILER=smtp'
-              printf '%s\n' 'MAIL_HOST=smtp.gmail.com'
-              printf '%s\n' 'MAIL_PORT=587'
-              printf '%s\n' "MAIL_USERNAME=$MAIL_USERNAME"
-              printf '%s\n' "MAIL_PASSWORD=\"$MP\""
-              printf '%s\n' 'MAIL_SCHEME=smtp'
+              printf '%s\n' 'MAIL_MAILER=dmxmailer'
+              printf '%s\n' "DMX_MAILER_URL=$DMX_MAILER_URL"
+              printf '%s\n' "DMX_MAILER_KEY=\"$DMX_MAILER_KEY\""
               printf '%s\n' "MAIL_FROM_ADDRESS=\"$MAIL_FROM_ADDRESS\""
               printf '%s\n' "MAIL_FROM_NAME=\"$MAIL_FROM_NAME\""
               printf '%s\n' "MAGIC_LINK_ALLOWED_EMAILS=$MAGIC_LINK_ALLOWED_EMAILS"

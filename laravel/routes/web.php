@@ -19,8 +19,14 @@ Route::redirect('/login', '/')->name('login');
 Route::post('/auth/magic-link', [MagicLinkController::class, 'send'])
     ->middleware('throttle:magic-link');
 
-Route::get('/auth/magic', [MagicLinkController::class, 'login'])
+// Étape 1 (GET) : affiche la confirmation sans consommer le jeton (les
+// scanners de liens pré-visitent cette URL — voir MagicLinkController::verify).
+Route::get('/auth/magic', [MagicLinkController::class, 'verify'])
     ->name('magic-link.login');
+
+// Étape 2 (POST) : consomme le jeton (usage unique) et ouvre la session.
+Route::post('/auth/magic', [MagicLinkController::class, 'consume'])
+    ->name('magic-link.consume');
 
 Route::post('/auth/logout', [MagicLinkController::class, 'logout'])
     ->middleware('auth');

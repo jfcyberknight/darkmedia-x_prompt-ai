@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 # =============================================================================
 # DarkMedia Prompt AI — image de production autonome
 # PHP-FPM 8.4 + nginx + supervisord dans un seul conteneur, pensé pour être
@@ -10,7 +11,7 @@ FROM composer:2 AS vendor
 WORKDIR /app
 
 COPY composer.json composer.lock ./
-RUN composer install \
+RUN --mount=type=cache,target=/root/.cache/composer composer install \
     --no-dev \
     --no-interaction \
     --no-progress \

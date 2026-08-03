@@ -86,7 +86,11 @@ services:
     environment:
       TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
     depends_on:
-      - app
+      app:
+        # Attend que le HEALTHCHECK du Dockerfile (php-fpm/app up) soit vert
+        # avant de router du trafic public vers app:8080 — évite les
+        # 502/503 pendant le court redémarrage du conteneur app.
+        condition: service_healthy
 
 volumes:
   # Nom epingle pour rester stable quel que soit le nom de projet compose

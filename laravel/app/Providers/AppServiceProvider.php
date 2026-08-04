@@ -42,7 +42,7 @@ class AppServiceProvider extends ServiceProvider
         // (dmx-mailer) plutôt qu'à un SMTP direct. Activé via MAIL_MAILER=dmxmailer.
         Mail::extend('dmxmailer', function (array $config) {
             return new DmxMailerTransport(
-                (string) ($config['url'] ?? 'http://dmx-mailer:8080'),
+                (string) ($config['base_url'] ?? 'http://dmx-mailer:8080'),
                 $config['key'] ?? null,
                 (int) ($config['timeout'] ?? 20),
             );

@@ -83,7 +83,9 @@ return [
         // local. Transport enregistré dans AppServiceProvider::boot().
         'dmxmailer' => [
             'transport' => 'dmxmailer',
-            'url' => env('DMX_MAILER_URL', 'http://dmx-mailer:8080'),
+            // Ne pas nommer cette clé 'url' : Laravel parse alors le scheme
+            // (http) et écrase 'transport' par 'http' → transport inconnu.
+            'base_url' => env('DMX_MAILER_URL', 'http://dmx-mailer:8080'),
             'key' => env('DMX_MAILER_KEY'),
             'timeout' => (int) env('DMX_MAILER_TIMEOUT', 20),
         ],

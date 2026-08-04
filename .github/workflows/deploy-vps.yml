@@ -137,7 +137,14 @@ jobs:
                 ORIGIN_SERVICE=http://app:8080 bash ../scripts/setup-cloudflare-tunnel.sh \
                 || echo "Tunnel non configure (non bloquant)"
             fi
-            docker rm -f prompt-ai prompt-ai-cloudflared 2>/dev/null || true
+            # NB : plus de `docker rm -f` global avant le up. Ça tuait
+            # prompt-ai-cloudflared (donc coupait le tunnel public) puis
+            # laissait tourner le build sans AUCUN connecteur actif -> panne
+            # complète le temps du build à chaque déploiement. `docker compose
+            # up -d --build` recrée uniquement les conteneurs dont la
+            # config/l'image a changé (cloudflared reste up), et cloudflared
+            # attend maintenant que app soit healthy (voir
+            # docker-compose.vps.yml) avant de router du trafic vers lui.
             docker compose -f docker-compose.vps.yml up -d --build
             docker image prune -f
             echo "> Verification sante loopback..."

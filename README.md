@@ -111,3 +111,4 @@ Le projet suit les standards suivants :
 
 > [!NOTE]
 > Ce système est conçu pour être auto-documenté. Toute modification du code source déclenche une mise à jour du `README.md` via le rôle "Gardien".
+# test hook trigger 2026-08-06T02:05:01+00:00

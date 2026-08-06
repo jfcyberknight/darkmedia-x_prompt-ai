@@ -5,17 +5,20 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Mail\MagicLinkMail;
 use App\Models\User;
+use App\Services\MagicLinkService;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
 class MagicLinkController extends Controller
 {
+    public function __construct(private MagicLinkService $magicLink) {}
+
     /**
      * Demande d'un lien de connexion. Répond toujours par un message générique
      * (même adresse inconnue / non autorisée) pour empêcher l'énumération
@@ -29,18 +32,21 @@ class MagicLinkController extends Controller
         $user = $this->resolveUser($email);
 
         if ($user !== null) {
-            $token = Str::random(64);
             $minutes = (int) config('magiclink.expiration_minutes', 15);
+            $token = $this->magicLink->issue($user->email, $minutes);
 
-            Cache::put(
-                'magic_link:'.hash('sha256', $token),
-                $user->id,
-                now()->addMinutes($minutes)
-            );
+            if ($token !== null) {
+                $loginUrl = route('magic-link.login', ['token' => $token]);
 
-            $loginUrl = route('magic-link.login', ['token' => $token]);
-
-            Mail::to($user->email)->send(new MagicLinkMail($loginUrl, $minutes));
+                try {
+                    Mail::to($user->email)->send(new MagicLinkMail($loginUrl, $minutes));
+                } catch (\Throwable $e) {
+                    Log::error('magic-link: failed to send email', [
+                        'email' => $user->email,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
         }
 
         return response()->json([
@@ -53,16 +59,15 @@ class MagicLinkController extends Controller
      * scanners de liens (Gmail, McAfee, Safe Browsing…) pré-visitent les URLs
      * des courriels ; consommer le jeton au GET rendait chaque lien « déjà
      * utilisé » avant même le clic du propriétaire. On valide donc le jeton
-     * sans le détruire (Cache::has) et on affiche une page de confirmation ;
+     * sans le détruire (dmx-magiclink expose ce contrôle non destructif via
+     * MagicLinkService::status) et on affiche une page de confirmation ;
      * seule la soumission du formulaire (POST) ouvre réellement la session.
      */
     public function verify(Request $request): RedirectResponse|View
     {
         $token = (string) $request->query('token', '');
 
-        $valid = $token !== '' && Cache::has('magic_link:'.hash('sha256', $token));
-
-        if (! $valid) {
+        if (! $this->magicLink->status($token)) {
             return redirect('/?login_error=expired');
         }
 
@@ -70,18 +75,18 @@ class MagicLinkController extends Controller
     }
 
     /**
-     * Étape 2 (POST) : consommation effective du lien. Cache::pull récupère et
-     * supprime le jeton de façon atomique → usage unique garanti, même sous
-     * deux requêtes concurrentes. Un lien déjà utilisé (ou expiré) renvoie vers
-     * la SPA avec l'invite à en redemander un nouveau. Succès → session
+     * Étape 2 (POST) : consommation effective du lien, déléguée à
+     * dmx-magiclink (atomique côté service → usage unique garanti, même sous
+     * deux requêtes concurrentes). Un lien déjà utilisé (ou expiré) renvoie
+     * vers la SPA avec l'invite à en redemander un nouveau. Succès → session
      * authentifiée + redirection SPA.
      */
     public function consume(Request $request): RedirectResponse
     {
         $validated = $request->validate(['token' => ['required', 'string']]);
 
-        $userId = Cache::pull('magic_link:'.hash('sha256', $validated['token']));
-        $user = $userId !== null ? User::find($userId) : null;
+        $email = $this->magicLink->consume($validated['token']);
+        $user = $email !== null ? User::where('email', $email)->first() : null;
 
         if ($user === null) {
             return redirect('/?login_error=expired');

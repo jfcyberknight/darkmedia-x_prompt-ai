@@ -35,4 +35,13 @@ return [
         ],
     ],
 
+    // Microservice partagé (jfcyberknight/microservices-port-adapter) qui
+    // génère/hache/expire/consomme les jetons de lien magique. Sur le VPS,
+    // pointe vers l'hôte interne dmx-net (aucun port public) ; en local,
+    // vers une instance lancée à côté (voir README de ce dépôt).
+    'magiclink' => [
+        'url' => env('MAGICLINK_SERVICE_URL', 'http://localhost:3001'),
+        'key' => env('MAGICLINK_SERVICE_KEY'),
+    ],
+
 ];

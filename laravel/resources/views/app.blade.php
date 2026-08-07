@@ -7,17 +7,17 @@
   <title>DarkMedia · Prompt AI</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
-  <link rel="stylesheet" href="/style.css">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v={{ filemtime(public_path('favicon.svg')) }}">
+  <link rel="stylesheet" href="/style.css?v={{ filemtime(public_path('style.css')) }}">
 
   <!-- PWA Manifest & iOS Meta Tags -->
-  <link rel="manifest" href="/manifest.json">
+  <link rel="manifest" href="/manifest.json?v={{ filemtime(public_path('manifest.json')) }}">
   <meta name="theme-color" content="#141418">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Prompt AI">
-  <link rel="apple-touch-icon" href="/favicon.svg">
+  <link rel="apple-touch-icon" href="/favicon.svg?v={{ filemtime(public_path('favicon.svg')) }}">
 </head>
 <body>
 
@@ -494,6 +494,6 @@
 <!-- ========== TOASTS ========== -->
 <div id="toast-container"></div>
 
-<script type="module" src="/js/app.js"></script>
+<script type="module" src="/js/app.js?v={{ filemtime(public_path('js/app.js')) }}"></script>
 </body>
 </html>

@@ -1,11 +1,11 @@
-import { $ } from './config.js';
+import { $, APP_VERSION } from './config.js';
 import { showToast } from './toast.js';
 
 let deferredPrompt = null;
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js')
+    navigator.serviceWorker.register(`/sw.js?v=${APP_VERSION}`)
       .then(reg => console.log('Service Worker registered successfully:', reg.scope))
       .catch(err => console.error('Service Worker registration failed:', err));
   });

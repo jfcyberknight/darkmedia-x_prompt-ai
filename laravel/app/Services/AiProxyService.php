@@ -226,6 +226,11 @@ PROMPT;
         $headers = [
             'HTTP-Referer' => config('app.url'),
             'X-Title' => 'DarkMedia Prompt AI',
+            // Le routeur interne dmx-ai-router ignore le modèle demandé sauf si
+            // un provider cible est explicitement signalé. On le précise pour
+            // que le modèle OpenRouter choisi par l'utilisateur soit effectivement
+            // utilisé (sinon il tombe sur le modèle par défaut du routeur).
+            'X-AI-Provider' => 'openrouter',
         ];
 
         // Modèle demandé, puis repli payant fiable s'il échoue (dédupliqué).

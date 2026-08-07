@@ -14,6 +14,29 @@ let state = {
   tagInput:     [],
 };
 
+// ---- App loading overlay ----
+let apiLoadingCount = 0;
+let appLoaderTimer = null;
+let appLoaderReady = false;
+
+function showAppLoader(message = '') {
+  const loader = $('app-loader');
+  if (!loader) return;
+  const status = $('app-loader-status');
+  if (status) status.textContent = message || '';
+  loader.classList.remove('hidden');
+}
+
+function hideAppLoader() {
+  const loader = $('app-loader');
+  if (loader) loader.classList.add('hidden');
+}
+
+function setAppLoaderMessage(message) {
+  const status = $('app-loader-status');
+  if (status) status.textContent = message || '';
+}
+
 // ---- App version (source de vérité affichée dans l'UI) ----
 const APP_VERSION = '2.0.0';
 
@@ -33,32 +56,49 @@ function xsrfToken() {
 }
 
 async function api(path, options = {}) {
-  const { method = 'GET', body } = options;
+  const { method = 'GET', body, loadingMessage } = options;
   const headers = { 'Accept': 'application/json' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (method !== 'GET') headers['X-XSRF-TOKEN'] = xsrfToken();
 
-  const res = await fetch(path, {
-    method,
-    headers,
-    credentials: 'same-origin',
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
-
-  if (res.status === 401) {
-    showLoginScreen();
-    throw new Error('Session expirée — reconnecte-toi.');
+  apiLoadingCount++;
+  if (loadingMessage) setAppLoaderMessage(loadingMessage);
+  if (!appLoaderTimer) {
+    appLoaderTimer = setTimeout(() => {
+      if (apiLoadingCount > 0) showAppLoader();
+    }, 300);
   }
 
-  let data = null;
-  try { data = await res.json(); } catch (_) { /* réponse vide */ }
+  try {
+    const res = await fetch(path, {
+      method,
+      headers,
+      credentials: 'same-origin',
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
 
-  if (!res.ok) {
-    const msg = data?.error || data?.message || `Erreur ${res.status}`;
-    throw new Error(msg);
+    if (res.status === 401) {
+      showLoginScreen();
+      throw new Error('Session expirée — reconnecte-toi.');
+    }
+
+    let data = null;
+    try { data = await res.json(); } catch (_) { /* réponse vide */ }
+
+    if (!res.ok) {
+      const msg = data?.error || data?.message || `Erreur ${res.status}`;
+      throw new Error(msg);
+    }
+
+    return data;
+  } finally {
+    apiLoadingCount--;
+    if (apiLoadingCount <= 0) {
+      clearTimeout(appLoaderTimer);
+      appLoaderTimer = null;
+      if (appLoaderReady) hideAppLoader();
+    }
   }
-
-  return data;
 }
 
 // ---- PWA Installation ----
@@ -164,11 +204,15 @@ async function showApp() {
   renderSidebar();
   renderPrompts();
   bindEvents();
+  appLoaderReady = true;
+  hideAppLoader();
 }
 
 function showLoginScreen() {
   $('login-overlay').style.display = 'flex';
   $('app').style.visibility = 'hidden';
+  appLoaderReady = false;
+  hideAppLoader();
 }
 
 function bindLoginForm() {
@@ -304,7 +348,7 @@ function saveSettings() {
 
 async function logout() {
   try {
-    await api('/auth/logout', { method: 'POST' });
+    await api('/auth/logout', { method: 'POST', loadingMessage: 'Déconnexion…' });
   } catch (_) { /* la session est peut-être déjà expirée */ }
   showToast('Déconnecté', 'success');
   showLoginScreen();
@@ -332,10 +376,10 @@ async function loadPrompts() {
 
 async function savePrompt(payload) {
   if (state.editingId) {
-    await api(`/api/prompts/${state.editingId}`, { method: 'PUT', body: payload });
+    await api(`/api/prompts/${state.editingId}`, { method: 'PUT', body: payload, loadingMessage: 'Mise à jour…' });
     showToast('Prompt mis à jour', 'success');
   } else {
-    await api('/api/prompts', { method: 'POST', body: payload });
+    await api('/api/prompts', { method: 'POST', body: payload, loadingMessage: 'Ajout…' });
     showToast('Prompt ajouté', 'success');
   }
   await loadPrompts();
@@ -345,7 +389,7 @@ async function savePrompt(payload) {
 
 async function deletePrompt(id) {
   try {
-    await api(`/api/prompts/${id}`, { method: 'DELETE' });
+    await api(`/api/prompts/${id}`, { method: 'DELETE', loadingMessage: 'Suppression…' });
   } catch (_) {
     return showToast('Erreur suppression', 'error');
   }
@@ -1025,8 +1069,8 @@ function toggleAiParseSection() {
 
 // Appel du proxy IA côté Laravel. La réponse est directement l'objet JSON
 // structuré produit par le modèle (ou {error: ...} en cas d'échec, levé par api()).
-async function callAiProxy(body) {
-  const data = await api('/api/ai', { method: 'POST', body });
+async function callAiProxy(body, message = '') {
+  const data = await api('/api/ai', { method: 'POST', body, loadingMessage: message });
   return typeof data === 'string' ? JSON.parse(data) : data;
 }
 
@@ -1043,7 +1087,7 @@ async function analyzeWithAI() {
 
   try {
     const aiCfg = getAIConfig();
-    const parsed = await callAiProxy({ text, provider: aiCfg.provider, model: aiCfg.model || undefined });
+    const parsed = await callAiProxy({ text, provider: aiCfg.provider, model: aiCfg.model || undefined }, 'Analyse par l\'AI en cours…');
 
     // Remplir le formulaire
     if (parsed.title)       $('field-title').value       = parsed.title;
@@ -1122,7 +1166,7 @@ async function improveWithAI() {
 
   try {
     const aiCfg = getAIConfig();
-    const parsed = await callAiProxy({ text: textToOptimize, action: 'upgrade', instruction, provider: aiCfg.provider, model: aiCfg.model || undefined });
+    const parsed = await callAiProxy({ text: textToOptimize, action: 'upgrade', instruction, provider: aiCfg.provider, model: aiCfg.model || undefined }, 'Amélioration du prompt…');
 
     // Met à jour le formulaire en place (sans fermer la modale)
     if (parsed.title)       $('field-title').value       = parsed.title;
@@ -1175,7 +1219,7 @@ async function upgradePromptWithAI(id) {
 
   try {
     const aiCfg = getAIConfig();
-    const parsed = await callAiProxy({ text: textToOptimize, action: 'upgrade', provider: aiCfg.provider, model: aiCfg.model || undefined });
+    const parsed = await callAiProxy({ text: textToOptimize, action: 'upgrade', provider: aiCfg.provider, model: aiCfg.model || undefined }, 'Optimisation du prompt…');
 
     closeDetailModal();
     openModal(id, parsed);
@@ -1217,7 +1261,7 @@ async function autoCategorizePrompts() {
 
       try {
         const aiCfg = getAIConfig();
-        const parsed = await callAiProxy({ text: textToAnalyze, action: 'extract', provider: aiCfg.provider, model: aiCfg.model || undefined });
+        const parsed = await callAiProxy({ text: textToAnalyze, action: 'extract', provider: aiCfg.provider, model: aiCfg.model || undefined }, `Catégorisation ${i + 1}/${prompts.length}…`);
         const categoryName = parsed.category;
 
         if (!categoryName) continue;
@@ -1288,7 +1332,7 @@ async function testAIConnection() {
     // provider, pas générer une réponse complète — le test reste quasi instantané.
     // 300 (et non 64) pour laisser de la marge aux modèles de raisonnement (surtout
     // gratuits) qui consomment des tokens de réflexion avant d'émettre le JSON final.
-    await callAiProxy({ text: 'Test de connexion. Réponds avec un court JSON.', action: 'extract', provider, model: model || undefined, maxTokens: 300, debug: true });
+    await callAiProxy({ text: 'Test de connexion. Réponds avec un court JSON.', action: 'extract', provider, model: model || undefined, maxTokens: 300, debug: true }, 'Test de connexion IA…');
 
     if (statusEl) { statusEl.textContent = `✓ Connexion réussie (${provider})`; statusEl.style.color = '#22c55e'; }
     showToast('Connexion IA réussie', 'success');

@@ -106,6 +106,22 @@ Le projet suit les standards suivants :
 - **Keep a Changelog** pour le suivi des modifications.
 - **Semantic Versioning (SemVer)** pour le marquage des étapes.
 - **Premium Markdown** pour une lisibilité maximale.
+- **Couverture de tests** : minimum 70 % du code applicatif (`app/`) avec PHPUnit + pcov.
+
+### Exécuter les tests
+
+```bash
+cd laravel
+make test              # tests sans couverture
+make test-coverage     # tests + couverture (seuil 70 %)
+```
+
+### CI / Codecov
+
+Le workflow `.github/workflows/ci.yml` exécute les tests à chaque push/PR et
+upload le rapport `coverage.xml` vers **Codecov** (configurez le secret
+`CODECOV_TOKEN` dans les paramètres du dépôt). Le rapport HTML est également
+disponible en artefact d'action.
 
 ---
 

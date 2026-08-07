@@ -1,6 +1,6 @@
 import { $, APP_VERSION } from './config.js';
 import { setUnauthorizedHandler } from './api-client.js';
-import { setAppLoaderReady, hideAppLoader } from './loader.js';
+import { setAppLoaderReady, showAppLoader, hideAppLoader } from './loader.js';
 import { showToast } from './toast.js';
 import { api } from './api-client.js';
 import { loadCategories, loadPrompts } from './prompts-data.js';
@@ -33,6 +33,10 @@ setUnauthorizedHandler(showLoginScreen);
 configureAuth({ showLoginScreen });
 
 document.addEventListener('DOMContentLoaded', async () => {
+  // Affiche l'overlay de chargement dès que le DOM est prêt,
+  // avant même que les modules ne soient exécutés.
+  showAppLoader();
+
   bindLoginForm();
   bindSettingsForm();
 

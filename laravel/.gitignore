@@ -1,4 +1,6 @@
 *.log
+coverage.xml
+/coverage
 .DS_Store
 .env
 .env.backup

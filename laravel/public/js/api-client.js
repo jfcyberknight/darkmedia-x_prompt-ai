@@ -15,12 +15,12 @@ function xsrfToken() {
 }
 
 export async function api(path, options = {}) {
-  const { method = 'GET', body, loadingMessage } = options;
+  const { method = 'GET', body, loadingMessage, globalLoader = false } = options;
   const headers = { 'Accept': 'application/json' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (method !== 'GET') headers['X-XSRF-TOKEN'] = xsrfToken();
 
-  trackApiStart(loadingMessage);
+  if (globalLoader) trackApiStart(loadingMessage);
 
   try {
     const res = await fetch(path, {
@@ -45,6 +45,6 @@ export async function api(path, options = {}) {
 
     return data;
   } finally {
-    trackApiEnd();
+    if (globalLoader) trackApiEnd();
   }
 }

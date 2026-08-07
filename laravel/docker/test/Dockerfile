@@ -5,8 +5,11 @@ FROM php:8.4-cli-alpine
 
 RUN apk add --no-cache \
         git unzip icu-dev libzip-dev postgresql-dev oniguruma-dev sqlite-dev \
+        $PHPIZE_DEPS \
     && docker-php-ext-install -j"$(nproc)" \
         pdo_mysql pdo_pgsql pdo_sqlite intl zip bcmath mbstring opcache \
+    && pecl install pcov \
+    && docker-php-ext-enable pcov \
     && rm -rf /var/cache/apk/*
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer

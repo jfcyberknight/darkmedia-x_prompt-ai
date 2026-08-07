@@ -1,4 +1,4 @@
-.PHONY: test build-image
+.PHONY: test test-coverage build-image
 
 TEST_IMAGE := darkmedia-x_prompt-ai-test:latest
 
@@ -19,3 +19,16 @@ test: build-image
 		sh -c "composer install --no-interaction --prefer-dist -q && \
 			(grep -q '^APP_KEY=base64:' .env.testing || php artisan key:generate --env=testing --force) && \
 			composer test"
+
+test-coverage: build-image
+	@test -f .env.testing || cp .env.example .env.testing
+	docker run --rm \
+		-e APP_ENV=testing \
+		-e XDEBUG_MODE=coverage \
+		-v "$(CURDIR)":/app \
+		-v prompt-ai-dev-vendor:/app/vendor \
+		-w /app \
+		$(TEST_IMAGE) \
+		sh -c "composer install --no-interaction --prefer-dist -q && \
+			(grep -q '^APP_KEY=base64:' .env.testing || php artisan key:generate --env=testing --force) && \
+			php artisan test --coverage --min=70"

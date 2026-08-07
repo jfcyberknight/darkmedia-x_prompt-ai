@@ -494,6 +494,6 @@
 <!-- ========== TOASTS ========== -->
 <div id="toast-container"></div>
 
-<script src="/app.js"></script>
+<script type="module" src="/js/app.js"></script>
 </body>
 </html>

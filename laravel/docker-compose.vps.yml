@@ -91,6 +91,11 @@ services:
         # avant de router du trafic public vers app:8080 — évite les
         # 502/503 pendant le court redémarrage du conteneur app.
         condition: service_healthy
+    # dmx-net : nécessaire pour joindre dmx-proxy (reverse proxy central).
+    # Le tunnel route vers http://dmx-proxy:80 qui dispatch par hostname.
+    networks:
+      - default
+      - dmx-net
 
 volumes:
   # Nom epingle pour rester stable quel que soit le nom de projet compose

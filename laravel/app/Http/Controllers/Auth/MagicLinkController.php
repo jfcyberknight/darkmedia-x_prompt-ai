@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\MagicLinkConsumeRequest;
+use App\Http\Requests\MagicLinkSendRequest;
 use App\Mail\MagicLinkMail;
 use App\Models\User;
 use App\Services\MagicLinkService;
@@ -24,9 +26,9 @@ class MagicLinkController extends Controller
      * (même adresse inconnue / non autorisée) pour empêcher l'énumération
      * d'emails ; le lien n'est réellement envoyé qu'aux adresses éligibles.
      */
-    public function send(Request $request): JsonResponse
+    public function send(MagicLinkSendRequest $request): JsonResponse
     {
-        $validated = $request->validate(['email' => ['required', 'email']]);
+        $validated = $request->validated();
         $email = strtolower(trim($validated['email']));
 
         $user = $this->resolveUser($email);
@@ -81,9 +83,9 @@ class MagicLinkController extends Controller
      * vers la SPA avec l'invite à en redemander un nouveau. Succès → session
      * authentifiée + redirection SPA.
      */
-    public function consume(Request $request): RedirectResponse
+    public function consume(MagicLinkConsumeRequest $request): RedirectResponse
     {
-        $validated = $request->validate(['token' => ['required', 'string']]);
+        $validated = $request->validated();
 
         $email = $this->magicLink->consume($validated['token']);
         $user = $email !== null ? User::where('email', $email)->first() : null;

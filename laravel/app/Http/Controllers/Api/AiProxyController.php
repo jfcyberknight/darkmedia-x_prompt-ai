@@ -3,9 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\AiProxyRequest;
 use App\Services\AiProxyService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Log;
 
@@ -18,17 +18,9 @@ class AiProxyController extends Controller
      * Actions : extract (défaut), upgrade, ping. Réservé aux utilisateurs
      * authentifiés (middleware auth sur la route).
      */
-    public function __invoke(Request $request): JsonResponse|Response
+    public function __invoke(AiProxyRequest $request): JsonResponse|Response
     {
-        $validated = $request->validate([
-            'text' => ['nullable', 'string', 'max:100000'],
-            'action' => ['nullable', 'string', 'in:extract,upgrade,ping'],
-            'provider' => ['nullable', 'string', 'max:40'],
-            'model' => ['nullable', 'string', 'max:120'],
-            'instruction' => ['nullable', 'string', 'max:10000'],
-            'maxTokens' => ['nullable', 'integer'],
-            'debug' => ['nullable', 'boolean'],
-        ]);
+        $validated = $request->validated();
 
         $action = $validated['action'] ?? 'extract';
         $provider = $validated['provider'] ?? config('ai.default_provider', 'openrouter');

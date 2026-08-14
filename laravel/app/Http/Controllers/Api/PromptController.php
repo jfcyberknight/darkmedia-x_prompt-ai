@@ -3,9 +3,9 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\PromptRequest;
 use App\Models\Prompt;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 
 class PromptController extends Controller
 {
@@ -18,16 +18,16 @@ class PromptController extends Controller
         );
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(PromptRequest $request): JsonResponse
     {
-        $prompt = Prompt::create($this->validated($request));
+        $prompt = Prompt::create($request->validated());
 
         return response()->json($prompt->load('category:id,name,color'), 201);
     }
 
-    public function update(Request $request, Prompt $prompt): JsonResponse
+    public function update(PromptRequest $request, Prompt $prompt): JsonResponse
     {
-        $prompt->update($this->validated($request));
+        $prompt->update($request->validated());
 
         return response()->json($prompt->fresh()->load('category:id,name,color'));
     }
@@ -58,26 +58,5 @@ class PromptController extends Controller
         return response()->json(
             $prompt->versions()->orderByDesc('version')->limit(10)->get()
         );
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function validated(Request $request): array
-    {
-        $data = $request->validate([
-            'title' => ['required', 'string', 'max:200'],
-            'content' => ['required', 'string'],
-            'description' => ['nullable', 'string', 'max:1000'],
-            'category_id' => ['nullable', 'uuid', 'exists:categories,id'],
-            'tags' => ['nullable', 'array', 'max:20'],
-            'tags.*' => ['string', 'max:60'],
-            'model' => ['nullable', 'string', 'max:120'],
-            'source' => ['nullable', 'string', 'max:500'],
-        ]);
-
-        $data['tags'] = array_values($data['tags'] ?? []);
-
-        return $data;
     }
 }

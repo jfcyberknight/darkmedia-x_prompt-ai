@@ -25,7 +25,7 @@ jobs:
           ssh-keygen -y -f /tmp/vps_key >/dev/null
 
       - name: Diagnostic SSH
-        uses: appleboy/ssh-action@v1
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2 # v1.2.5
         with:
           host: ${{ vars.VPS_HOST || 'vps-c4db969c.vps.ovh.ca' }}
           username: ${{ vars.VPS_USER || 'ubuntu' }}

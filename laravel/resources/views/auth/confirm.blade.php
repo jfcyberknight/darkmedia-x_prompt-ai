@@ -11,6 +11,9 @@
     <meta name="theme-color" content="#141418">
     {{-- Empêche l'indexation de la page intermédiaire du lien magique --}}
     <meta name="robots" content="noindex">
+    {{-- Le jeton de connexion est dans l'URL : ne jamais le laisser fuiter
+         via le Referer vers les hôtes tiers (Google Fonts, etc.). --}}
+    <meta name="referrer" content="no-referrer">
     <style>
         :root {
             --bg: #141418;

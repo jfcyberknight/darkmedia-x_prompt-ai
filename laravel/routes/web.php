@@ -21,11 +21,17 @@ Route::post('/auth/magic-link', [MagicLinkController::class, 'send'])
 
 // Étape 1 (GET) : affiche la confirmation sans consommer le jeton (les
 // scanners de liens pré-visitent cette URL — voir MagicLinkController::verify).
+// Throttle : chaque GET interroge le microservice de jetons (appel HTTP sortant)
+// et peut servir à le marteler depuis une IP.
 Route::get('/auth/magic', [MagicLinkController::class, 'verify'])
+    ->middleware('throttle:magic-link-verify')
     ->name('magic-link.login');
 
 // Étape 2 (POST) : consomme le jeton (usage unique) et ouvre la session.
+// Throttle : borne le bruteforce (les jetons sont à haute entropie, mais
+// chaque tentative coûte un appel HTTP sortant au microservice).
 Route::post('/auth/magic', [MagicLinkController::class, 'consume'])
+    ->middleware('throttle:magic-link-consume')
     ->name('magic-link.consume');
 
 Route::post('/auth/logout', [MagicLinkController::class, 'logout'])

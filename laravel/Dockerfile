@@ -44,9 +44,17 @@ RUN apk add --no-cache \
 # Doppler CLI : les secrets (SMTP, clés IA…) sont récupérés au démarrage depuis
 # Doppler — même gestionnaire de secrets que tous les autres projets. L'entrypoint
 # relance le conteneur sous `doppler run` quand un DOPPLER_TOKEN est fourni.
-RUN apk add --no-cache gnupg \
-    && wget -t3 -qO- https://cli.doppler.com/install.sh | sh \
-    && apk del gnupg \
+# Version + sha256 épinglées (build reproductible, plus d'exécution de script
+# distant `install.sh | sh` à la construction). Mettre à jour via les releases
+# GitHub DopplerHQ/cli : `curl -s https://api.github.com/repos/DopplerHQ/cli/releases/latest`.
+ARG DOPPLER_VERSION=3.76.5
+ARG DOPPLER_SHA256=1b2f412d984920d665daf233ab6c15b364df9339b5c5b5224d5e8ee4e0a70154
+RUN wget -t3 -qO /tmp/doppler.tar.gz \
+        "https://github.com/DopplerHQ/cli/releases/download/${DOPPLER_VERSION}/doppler_${DOPPLER_VERSION}_linux_amd64.tar.gz" \
+    && echo "${DOPPLER_SHA256}  /tmp/doppler.tar.gz" | sha256sum -c - \
+    && tar -xzf /tmp/doppler.tar.gz -C /tmp \
+    && install -m 0755 /tmp/doppler /usr/local/bin/doppler \
+    && rm -rf /tmp/doppler /tmp/doppler.tar.gz \
     && rm -rf /var/cache/apk/*
 
 WORKDIR /var/www/html

@@ -70,7 +70,14 @@ class AiProxyController extends Controller
                 'error' => $e->getMessage(),
             ]);
 
-            $body = ['error' => $e->getMessage()];
+            // Message générique côté client par défaut : les exceptions du
+            // service peuvent contenir le body de réponse du provider amont
+            // (détails d'API, éventuels éléments de requête). Le détail complet
+            // reste disponible en logs et via debug=true (opt-in explicite).
+            $body = $debug
+                ? ['error' => $e->getMessage()]
+                : ['error' => 'Erreur du service IA. Consultez les logs ou réessayez avec debug=true pour le détail.'];
+
             if ($debug) {
                 $body['configured'] = $this->ai->keyStatus();
                 $body['model'] = $model;

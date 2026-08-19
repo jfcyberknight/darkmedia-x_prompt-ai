@@ -237,7 +237,7 @@
 
         <div class="form-group">
           <label>Tags</label>
-          <div class="tags-input-wrap" id="tags-input-wrap" onclick="document.getElementById('tag-input').focus()">
+          <div class="tags-input-wrap" id="tags-input-wrap">
             <input type="text" id="tag-input" class="tags-input" placeholder="Ajouter un tag…">
           </div>
           <span class="form-hint">Appuie sur Entrée ou virgule pour ajouter un tag</span>

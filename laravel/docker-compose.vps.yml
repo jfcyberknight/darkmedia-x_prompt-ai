@@ -78,7 +78,11 @@ services:
   # promptai.darkmedia-x.com -> http://app:8080 est gere cote Cloudflare
   # (config_src=cloudflare), donc pas de redemarrage au changement d'ingress.
   cloudflared:
-    image: cloudflare/cloudflared:latest
+    # Tag + digest épinglés (2026.8.2, multi-arch) : les tags flottants
+    # (`latest`) cassent la reproductibilité et peuvent introduire des
+    # changements non revus. Mettre à jour : `docker buildx imagetools inspect
+    # cloudflare/cloudflared:<nouveau-tag>` pour récupérer le digest.
+    image: cloudflare/cloudflared:2026.8.2@sha256:0aa26e284f05e6c77ae375b8c9c11d9eb6a448fb7bcd8d40f31cb6176189eb38
     container_name: prompt-ai-cloudflared
     restart: unless-stopped
     profiles: ["tunnel"]

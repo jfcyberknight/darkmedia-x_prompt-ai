@@ -38,6 +38,12 @@ export function bindEvents() {
 
   $('prompt-form')?.addEventListener('submit', onFormSubmit);
 
+  // Focus au clic sur la zone de tags (wrapper entier) : listener dédié plutôt
+  // qu'attribut onclick inline — requis par la CSP `script-src 'self'`.
+  $('tags-input-wrap')?.addEventListener('click', e => {
+    if (e.target.id !== 'tag-input') $('tag-input')?.focus();
+  });
+
   $('tag-input')?.addEventListener('keydown', e => {
     if (e.key === 'Enter' || e.key === ',') {
       e.preventDefault();

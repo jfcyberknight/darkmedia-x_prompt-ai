@@ -38,6 +38,18 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perMinute(20)->by('user:'.($request->user()?->id ?? $request->ip()));
         });
 
+        // Page de confirmation (GET /auth/magic) : chaque vue interroge le
+        // microservice de jetons — borne par IP pour éviter de le marteler.
+        RateLimiter::for('magic-link-verify', function (Request $request) {
+            return Limit::perMinute(30)->by('ip:'.$request->ip());
+        });
+
+        // Consommation (POST /auth/magic) : borne le bruteforce de jetons et
+        // le martèlement du microservice, par IP.
+        RateLimiter::for('magic-link-consume', function (Request $request) {
+            return Limit::perMinute(10)->by('ip:'.$request->ip());
+        });
+
         // Transport Mail « dmxmailer » : délègue au service e-mail privé du VPS
         // (dmx-mailer) plutôt qu'à un SMTP direct. Activé via MAIL_MAILER=dmxmailer.
         Mail::extend('dmxmailer', function (array $config) {

@@ -5,16 +5,20 @@ import { renderSidebar, renderPrompts } from './ui-renderer.js';
 
 export async function loadCategories() {
   try {
-    state.categories = await api('/api/categories');
+    const data = await api('/api/categories');
+    state.categories = Array.isArray(data) ? data : [];
   } catch (_) {
+    state.categories = state.categories || [];
     showToast('Erreur chargement catégories', 'error');
   }
 }
 
 export async function loadPrompts() {
   try {
-    state.prompts = await api('/api/prompts');
+    const data = await api('/api/prompts');
+    state.prompts = Array.isArray(data) ? data : [];
   } catch (_) {
+    state.prompts = state.prompts || [];
     showToast('Erreur chargement prompts', 'error');
   }
 }

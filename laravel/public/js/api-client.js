@@ -43,6 +43,14 @@ export async function api(path, options = {}) {
       throw new Error(msg);
     }
 
+    // Un corps 2xx illisible (connexion coupée en plein milieu, HTTP/2
+    // tronqué…) ne doit JAMAIS être confondu avec une réponse valide :
+    // renvoyer null ferait planter les appels (state.prompts = null →
+    // « Cannot read properties of null » dans renderSidebar).
+    if (data === null) {
+      throw new Error('Réponse illisible du serveur — réessaie.');
+    }
+
     return data;
   } finally {
     if (globalLoader) trackApiEnd();

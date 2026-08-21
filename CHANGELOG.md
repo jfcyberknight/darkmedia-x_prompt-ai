@@ -1,6 +1,22 @@
 # Changelog
 Toutes les modifications notables de ce projet seront documentées dans ce fichier.
 
+## [2.1.2] - 21 août 2026
+
+### Fixed
+- **ERR_HTTP2_PROTOCOL_ERROR sur `GET /api/prompts`** : nginx ne pouvait pas écrire
+  sa réponse temporaire (le dossier par défaut `/var/lib/nginx/tmp` appartient à
+  `nginx` en mode 700, non traversable par les workers `www-data`) → connexion
+  coupée en plein corps de réponse. Chemins temporaires déplacés sous `/tmp` +
+  buffers FastCGI élargis (`fastcgi_buffers 16 16k`) pour que le catalogue
+  complet tienne en mémoire.
+- **Crash frontend « Cannot read properties of null (reading 'length') »** dans
+  `renderSidebar` : une réponse tronquée faisait affecter `null` à
+  `state.prompts`. Le client API lève désormais une erreur sur un corps 2xx
+  illisible, les loaders garantissent un tableau, et les rendus sont défensifs.
+- PWA : bump `APP_VERSION`/cache du service worker (v2.1.2) pour propager les
+  nouveaux modules aux installations existantes.
+
 ## [2.0.0] - 21 juillet 2026
 
 ### Added

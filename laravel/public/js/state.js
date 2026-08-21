@@ -9,7 +9,7 @@ export const state = {
 };
 
 export function filteredPrompts() {
-  let list = [...state.prompts];
+  let list = [...(state.prompts || [])];
 
   if (state.filter.favorites) {
     list = list.filter(p => p.is_favorite);
@@ -46,6 +46,6 @@ export function filteredPrompts() {
 
 export function allTags() {
   const set = new Set();
-  state.prompts.forEach(p => (p.tags || []).forEach(t => set.add(t)));
+  (state.prompts || []).forEach(p => (p.tags || []).forEach(t => set.add(t)));
   return [...set].sort();
 }

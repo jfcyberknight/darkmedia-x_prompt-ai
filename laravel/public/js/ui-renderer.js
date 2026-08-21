@@ -6,11 +6,12 @@ export function renderSidebar() {
   const sidebar = $('sidebar');
   if (!sidebar) return;
 
-  const total = state.prompts.length;
-  const favCount = state.prompts.filter(p => p.is_favorite).length;
+  const prompts = state.prompts || [];
+  const total = prompts.length;
+  const favCount = prompts.filter(p => p.is_favorite).length;
 
   const catCounts = {};
-  state.prompts.forEach(p => {
+  prompts.forEach(p => {
     if (p.category_id) catCounts[p.category_id] = (catCounts[p.category_id] || 0) + 1;
   });
 

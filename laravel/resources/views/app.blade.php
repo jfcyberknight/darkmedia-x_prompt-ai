@@ -11,7 +11,7 @@
   <link rel="stylesheet" href="/style.css?v={{ filemtime(public_path('style.css')) }}">
 
   <!-- PWA Manifest & iOS Meta Tags -->
-  <link rel="manifest" href="/manifest.json?v={{ filemtime(public_path('manifest.json')) }}">
+  <link rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22DarkMedia%20Prompt%20AI%22%2C%22short_name%22%3A%22Prompt%20AI%22%2C%22description%22%3A%22Collection%20de%20prompts%20sp%5Cu00e9cialis%5Cu00e9s%20et%20de%20protocoles%20pour%20transformer%20l%27IA%20en%20un%20collaborateur%20technique%20de%20haute%20pr%5Cu00e9cision.%22%2C%22start_url%22%3A%22%2F%22%2C%22display%22%3A%22standalone%22%2C%22orientation%22%3A%22any%22%2C%22background_color%22%3A%22%230d0d0f%22%2C%22theme_color%22%3A%22%23141418%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22%2Ffavicon.svg%22%2C%22sizes%22%3A%22any%20192x192%20512x512%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%2C%22purpose%22%3A%22any%22%7D%2C%7B%22src%22%3A%22%2Ffavicon.svg%22%2C%22sizes%22%3A%22192x192%20512x512%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%2C%22purpose%22%3A%22maskable%22%7D%5D%7D">
   <meta name="theme-color" content="#141418">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -333,96 +333,7 @@
   </div>
 </div>
 
-<!-- ========== LOGIN SCREEN ========== -->
-<div class="login-overlay" id="login-overlay">
-  <div class="landing-container">
 
-    <!-- LEFT: Pitch & Features -->
-    <div class="landing-pitch">
-      <div class="landing-tag">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <polygon points="12 2 2 22 22 22"/>
-        </svg>
-        <span>Ingénierie de Prompts Assistée par IA</span>
-      </div>
-
-      <h1 class="landing-title-main">
-        Optimisez vos interactions et <span class="accent-text">maximisez le potentiel</span> de vos modèles d'IA.
-      </h1>
-
-      <p class="landing-description">
-        DarkMedia Prompt AI est votre bibliothèque privée et protocole d'ingénierie sémantique. Créez, catégorisez, optimisez avec l'aide de l'IA et accédez à vos configurations de prompts de haute précision instantanément.
-      </p>
-
-      <div class="landing-steps">
-        <div class="landing-step">
-          <div class="step-num">1</div>
-          <div class="step-content">
-            <strong>Connexion sans mot de passe</strong>
-            <span>Recevez un lien de connexion sécurisé par email — aucun mot de passe à retenir ni à faire fuiter.</span>
-          </div>
-        </div>
-        <div class="landing-step">
-          <div class="step-num">2</div>
-          <div class="step-content">
-            <strong>Optimisation Automatique</strong>
-            <span>Utilisez le moteur d'amélioration IA pour affiner la structure et la clarté de vos prompts.</span>
-          </div>
-        </div>
-        <div class="landing-step">
-          <div class="step-num">3</div>
-          <div class="step-content">
-            <strong>Recherche & Filtres Avancés</strong>
-            <span>Accédez instantanément à vos prompts par tags, catégories ou favoris via des raccourcis clavier rapides.</span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- RIGHT: Login Box -->
-    <div class="landing-auth">
-      <div class="login-box">
-        <div class="login-logo">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
-          </svg>
-        </div>
-        <h2 class="login-title">Espace Sémantique</h2>
-        <p class="login-subtitle" id="login-subtitle">Reçois ton lien de connexion par email</p>
-
-        <!-- VUE : Connexion par magic link -->
-        <div id="login-view" style="width: 100%;">
-          <form id="login-form" class="login-form">
-            <div class="form-group">
-              <label for="login-email">Email</label>
-              <input type="email" id="login-email" name="email" placeholder="ton@email.com" required autocomplete="email">
-            </div>
-            <div id="login-error" class="login-error" style="display:none"></div>
-            <div id="login-success" style="display:none;font-size:0.85rem;color:var(--success,#22c55e);margin-bottom:0.75rem;text-align:center;line-height:1.5"></div>
-            <button type="submit" class="btn btn-primary" id="login-btn" style="width:100%;justify-content:center">
-              Recevoir mon lien de connexion
-            </button>
-            <p style="margin:0.9rem 0 0;font-size:0.78rem;color:var(--text-muted,#64748b);text-align:center;line-height:1.5">
-              Clique sur le lien reçu par email pour te connecter.<br>Il est valable 15 minutes et à usage unique.
-            </p>
-          </form>
-        </div>
-
-        <!-- Installation de l'app (PWA) — accessible sans connexion -->
-        <div id="landing-install-wrap" style="margin-top:1.25rem;padding-top:1.25rem;border-top:1px solid var(--border);width:100%;display:flex;flex-direction:column;gap:0.5rem;align-items:center;">
-          <button type="button" id="landing-install-btn" class="btn btn-ghost" style="width:100%;justify-content:center;gap:0.5rem;">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
-            Installer l'application
-          </button>
-          <span style="font-size:0.78rem;color:var(--text-muted);text-align:center;">Utilisez-la comme une app native (hors ligne, plein écran).</span>
-        </div>
-      </div>
-    </div>
-
-  </div>
-</div>
 
 <!-- ========== SETTINGS MODAL ========== -->
 <div class="modal-overlay" id="settings-overlay">
@@ -488,6 +399,45 @@
         Sauvegarder
       </button>
     </div>
+  </div>
+</div>
+
+<!-- ========== MODAL : ENVOI PAR EMAIL ========== -->
+<div class="modal-overlay" id="email-overlay">
+  <div class="modal" style="max-width:440px" role="dialog" aria-modal="true">
+    <div class="modal-header">
+      <h2 class="modal-title">Envoyer par courriel</h2>
+      <button class="modal-close" data-action="close-email" aria-label="Fermer">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <form id="email-form">
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:1rem;">
+        <div class="form-group">
+          <label for="email-recipient">Destinataire</label>
+          <input type="email" id="email-recipient" name="email" placeholder="destinataire@email.com" required autocomplete="email" style="width:100%;padding:0.6rem 0.8rem;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-size:0.9rem;">
+        </div>
+        <div class="form-group">
+          <label for="email-message">Message (optionnel)</label>
+          <textarea id="email-message" name="message" rows="3" placeholder="Note accompagnant le prompt…" style="width:100%;padding:0.6rem 0.8rem;background:var(--surface-2);border:1px solid var(--border);border-radius:6px;color:var(--text-primary);font-size:0.88rem;resize:vertical;"></textarea>
+        </div>
+        <div id="email-prompt-preview" style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:0.8rem;font-size:0.82rem;color:var(--text-secondary);">
+          <!-- Rempli dynamiquement par JS -->
+        </div>
+        <div id="email-error" class="login-error" style="display:none"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-ghost" data-action="close-email">Annuler</button>
+        <button type="submit" class="btn btn-primary" id="email-send-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+          </svg>
+          Envoyer
+        </button>
+      </div>
+    </form>
   </div>
 </div>
 

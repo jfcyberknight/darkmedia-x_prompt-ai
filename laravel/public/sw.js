@@ -2,12 +2,11 @@
 // force le navigateur à installer le nouveau service worker, dont l'activation
 // purge l'ancien cache. Sans ça, la PWA installée reste figée sur une vieille
 // version (nom de cache constant = SW jamais considéré comme mis à jour).
-const CACHE_NAME = 'prompt-ai-v2.1.3';
+const CACHE_NAME = 'prompt-ai-v2.1.4';
 const ASSETS = [
   '/',
   '/style.css',
   '/favicon.svg',
-  '/manifest.json',
   'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap',
   // Modules JS (point d'entrée + dépendances)
   '/js/app.js',

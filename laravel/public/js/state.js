@@ -5,6 +5,7 @@ export const state = {
   sort:         'created_at_desc',
   editingId:    null,
   viewingId:    null,
+  emailingPromptId: null,
   tagInput:     [],
 };
 

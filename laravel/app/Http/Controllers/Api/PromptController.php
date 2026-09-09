@@ -3,9 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\EmailPromptRequest;
 use App\Http\Requests\PromptRequest;
+use App\Mail\PromptMail;
 use App\Models\Prompt;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Mail;
 
 class PromptController extends Controller
 {
@@ -58,5 +61,25 @@ class PromptController extends Controller
         return response()->json(
             $prompt->versions()->orderByDesc('version')->limit(10)->get()
         );
+    }
+
+    public function email(EmailPromptRequest $request, Prompt $prompt): JsonResponse
+    {
+        $validated = $request->validated();
+        $senderName = $request->user()?->name;
+
+        try {
+            Mail::to($validated['email'])->send(
+                new PromptMail($prompt, $senderName)
+            );
+        } catch (\Throwable $e) {
+            return response()->json([
+                'error' => 'L\'envoi du courriel a échoué. Réessaie plus tard.',
+            ], 502);
+        }
+
+        return response()->json([
+            'message' => 'Prompt envoyé par courriel à ' . $validated['email'],
+        ]);
     }
 }

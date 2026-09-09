@@ -4,7 +4,7 @@ import { showToast } from './toast.js';
 import { toggleFavorite, incrementUsage } from './prompts-data.js';
 import { renderSidebar, renderPrompts } from './ui-renderer.js';
 import { openModal, closeModal, onFormSubmit, addTag, removeTag } from './ui-form.js';
-import { openDetail, closeDetailModal, closeConfirm, executeDelete, copyFromDetail, openModalFromDetail, showHistory, confirmDelete } from './ui-detail.js';
+import { openDetail, closeDetailModal, closeConfirm, executeDelete, copyFromDetail, openModalFromDetail, showHistory, confirmDelete, openEmailModal, closeEmailModal, sendPromptEmail } from './ui-detail.js';
 import { logout } from './auth.js';
 import { openSettings, closeSettings, saveSettings } from './settings.js';
 import { autoCategorizePrompts, testAIConnection, analyzeWithAI, improveWithAI, upgradePromptWithAI, toggleAiParseSection, toggleAiImproveSection } from './ai-features.js';
@@ -32,14 +32,19 @@ export function bindEvents() {
   $('confirm-overlay')?.addEventListener('click', e => {
     if (e.target === $('confirm-overlay')) closeConfirm();
   });
+  $('email-overlay')?.addEventListener('click', e => {
+    if (e.target === $('email-overlay')) closeEmailModal();
+  });
   $('pwa-install-overlay')?.addEventListener('click', e => {
     if (e.target === $('pwa-install-overlay')) closePwaInstallModal();
   });
 
   $('prompt-form')?.addEventListener('submit', onFormSubmit);
+  $('email-form')?.addEventListener('submit', e => {
+    e.preventDefault();
+    sendPromptEmail();
+  });
 
-  // Focus au clic sur la zone de tags (wrapper entier) : listener dédié plutôt
-  // qu'attribut onclick inline — requis par la CSP `script-src 'self'`.
   $('tags-input-wrap')?.addEventListener('click', e => {
     if (e.target.id !== 'tag-input') $('tag-input')?.focus();
   });
@@ -60,6 +65,7 @@ export function bindEvents() {
       closeModal();
       closeDetailModal();
       closeConfirm();
+      closeEmailModal();
       closePwaInstallModal();
     }
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
@@ -107,10 +113,12 @@ function onGlobalClick(e) {
     case 'close-modal':  closeModal(); break;
     case 'close-detail': closeDetailModal(); break;
     case 'close-confirm': closeConfirm(); break;
+    case 'close-email':  closeEmailModal(); break;
     case 'confirm-delete': executeDelete(); break;
     case 'copy-detail':  copyFromDetail(); break;
     case 'edit-from-detail': openModalFromDetail(); break;
     case 'show-history': showHistory(); break;
+    case 'email-prompt': openEmailModal(el.dataset.id); break;
     case 'remove-tag':   removeTag(el.dataset.tag); break;
     case 'toggle-ai-parse': toggleAiParseSection(); break;
     case 'ai-analyze':   analyzeWithAI(); break;

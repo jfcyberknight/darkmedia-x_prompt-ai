@@ -5,6 +5,7 @@ import { showToast } from './toast.js';
 import { loadVersions, deletePrompt, incrementUsage } from './prompts-data.js';
 import { openModal } from './ui-form.js';
 import { renderPrompts } from './ui-renderer.js';
+import { api } from './api-client.js';
 
 let pendingDeleteId = null;
 
@@ -67,6 +68,13 @@ export function openDetail(id) {
       <button class="btn btn-ghost" id="detail-upgrade-btn" data-action="upgrade-prompt-ai" data-id="${p.id}" style="color:var(--accent)">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
         Améliorer par l'AI
+      </button>
+      <button class="btn btn-ghost" data-action="email-prompt" data-id="${p.id}" title="Envoyer par courriel">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+          <polyline points="22,6 12,13 2,6"/>
+        </svg>
+        Envoyer par email
       </button>
       <button class="btn btn-ghost" data-action="edit-from-detail">Modifier</button>
       <button class="btn btn-primary" data-action="copy-detail">Copier le prompt</button>
@@ -147,4 +155,77 @@ export async function executeDelete() {
   const id = pendingDeleteId;
   closeConfirm();
   await deletePrompt(id);
+}
+
+// ---- Envoi par courriel ----
+
+export function openEmailModal(promptId) {
+  const p = state.prompts.find(p => p.id === promptId);
+  if (!p) return;
+  state.emailingPromptId = promptId;
+
+  const preview = $('email-prompt-preview');
+  if (preview) {
+    const previewText = p.content.length > 200
+      ? p.content.substring(0, 200) + '…'
+      : p.content;
+    preview.innerHTML = `<strong style="color:var(--text-primary)">${escHtml(p.title)}</strong><br><span style="color:var(--text-muted);font-size:0.78rem">${escHtml(previewText)}</span>`;
+  }
+
+  $('email-recipient').value = '';
+  const msgEl = $('email-message');
+  if (msgEl) msgEl.value = '';
+  const errEl = $('email-error');
+  if (errEl) errEl.style.display = 'none';
+
+  $('email-overlay').classList.add('open');
+  setTimeout(() => $('email-recipient')?.focus(), 100);
+}
+
+export function closeEmailModal() {
+  $('email-overlay').classList.remove('open');
+  state.emailingPromptId = null;
+}
+
+export async function sendPromptEmail() {
+  const promptId = state.emailingPromptId;
+  if (!promptId) return;
+
+  const email = $('email-recipient')?.value?.trim();
+  const message = $('email-message')?.value?.trim() || undefined;
+  const errEl = $('email-error');
+  const btn = $('email-send-btn');
+
+  if (!email) {
+    if (errEl) {
+      errEl.textContent = 'Veuillez saisir une adresse courriel.';
+      errEl.style.display = 'block';
+    }
+    return;
+  }
+
+  if (errEl) errEl.style.display = 'none';
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Envoi…';
+  }
+
+  try {
+    const data = await api(`/api/prompts/${promptId}/email`, {
+      method: 'POST',
+      body: { email, ...(message ? { message } : {}) },
+    });
+    showToast(data?.message || 'Courriel envoyé avec succès', 'success');
+    closeEmailModal();
+  } catch (err) {
+    if (errEl) {
+      errEl.textContent = err.message || 'L\'envoi a échoué.';
+      errEl.style.display = 'block';
+    }
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg> Envoyer`;
+    }
+  }
 }
